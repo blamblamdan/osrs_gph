@@ -1,0 +1,1 @@
+cargo flamegraph --flamechart --palette rust

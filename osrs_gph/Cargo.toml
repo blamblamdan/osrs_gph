@@ -1,0 +1,27 @@
+[package]
+name = "osrs_gph"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+prettytable-rs = "0.10.0"
+reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls", "blocking", "json"] }
+serde = { version = "1.0.196", features = ["derive"] } # Lower version of serde to be compatible. See https://serde.rs/derive.html/ #Troubleshooting
+serde_json = "1.0.113"
+slog = "2.7.0"
+sloggers = "2.2.0"
+toml = "0.8.8"
+# url = { version = "2.5.0"}
+
+
+[profile.release]
+debug = true
+
+# TODO:
+## Find out what's causing latency...
+### Browser requesting same data takes ~50ms-140ms (Upper bound when first initiating sequence of requests)
+### Request in program takes ~113ms consistently
+# Implement de/serialize for Item (item_search.rs)
+

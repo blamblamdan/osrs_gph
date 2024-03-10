@@ -1,0 +1,56 @@
+module: osrs_gph:57
+ Mar 09 16:46:47.152 DEBG Initialised logger.
+module: osrs_gph:92
+ Mar 09 16:46:47.152 INFO Initalised all FileIO structs
+module: osrs_gph::convenience:86
+ Mar 09 16:46:47.712 DEBG Read user input.
+module: osrs_gph:129
+ Mar 09 16:46:47.712 INFO Loading previous data instead.
+module: osrs_gph::logging:364
+ Mar 09 16:46:47.712 DEBG Initalising ItemSearch
+module: osrs_gph::logging:165
+ Mar 09 16:46:47.712 INFO Opened file lookup_data/name_to_id.json
+module: osrs_gph::logging:264
+ Mar 09 16:46:47.712 INFO Reading file lookup_data/name_to_id.json
+module: osrs_gph::logging:165
+ Mar 09 16:46:47.725 INFO Opened file lookup_data/id_to_name.json
+module: osrs_gph::logging:264
+ Mar 09 16:46:47.725 INFO Reading file lookup_data/id_to_name.json
+module: osrs_gph::logging:165
+ Mar 09 16:46:47.735 INFO Opened file api_data/price_data.json
+module: osrs_gph::logging:264
+ Mar 09 16:46:47.735 INFO Reading file api_data/price_data.json
+module: osrs_gph::logging:399
+ Mar 09 16:46:47.774 INFO Read success.
+module: osrs_gph::logging:412
+ Mar 09 16:46:47.774 WARN Item ID "28181" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.775 WARN Item ID "28179" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.775 WARN Item ID "28651" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.775 WARN Item ID "28667" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.775 WARN Item ID "28184" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.775 WARN Item ID "28653" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.776 WARN Item ID "28659" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.776 WARN Item ID "28657" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.776 WARN Item ID "9050" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.777 WARN Item ID "28190" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.777 WARN Item ID "28646" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.777 WARN Item ID "28644" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.777 WARN Item ID "9044" not found in lookup_data/id_to_name.json
+ Mar 09 16:46:47.778 WARN Item ID "28665" not found in lookup_data/id_to_name.json
+module: osrs_gph::logging:389
+ Mar 09 16:46:47.778 DEBG Removing ignored items.
+module: osrs_gph::logging:391
+ Mar 09 16:46:47.778 DEBG Removed 0 ignored items.
+module: osrs_gph:167
+ Mar 09 16:46:47.778 INFO Loading: Recipes from lookup_data/recipes.json
+module: osrs_gph::logging:165
+ Mar 09 16:46:47.778 INFO Opened file lookup_data/recipes.json
+module: osrs_gph::logging:264
+ Mar 09 16:46:47.778 INFO Reading file lookup_data/recipes.json
+module: osrs_gph::logging:460
+ Mar 09 16:46:47.779 WARN Skipping recipe: Making Guthix rests
+ Mar 09 16:46:47.779 WARN Skipping recipe: Casting Bones to Bananas (F2P)
+module: osrs_gph::logging:464
+ Mar 09 16:46:47.779 DEBG Filtered out 2 invalid recipes.
+module: osrs_gph::logging:468
+ Mar 09 16:46:47.779 DEBG Loaded 36 recipes.
