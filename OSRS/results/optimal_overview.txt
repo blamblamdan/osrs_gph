@@ -1,0 +1,121 @@
+CURRENT COINS = 1,000,000
+
+Method                                         Loss/Gain    Total Loss/Gain    Time (h)       GP/h
+-------------------------------------------  -----------  -----------------  ----------  ---------
+Making ranarr potions                                432             71,712        0.03  2,592,000
+Degriming grimy cadantine                          2,687             24,183        0.01  2,015,250
+Making snapdragon potions                            266             37,506        0.02  1,596,000
+Casting Tan Leather (Black d'hide)                   540             31,860        0.03  1,080,000
+Making lantadyme potions                             151             83,050        0.09    906,000
+Making irit potions                                  138            107,088        0.13    828,000
+Making kwuarm potions                                131             36,287        0.05    786,000
+Making avantoe potions                               120             34,800        0.05    720,000
+Making toadflax potions                              109             34,880        0.05    654,000
+Making cadantine potions                             107             27,392        0.04    642,000
+Degriming grimy torstol                              831              9,141        0.01    623,250
+Enchanting dragonstone jewellery (Manual)            181             15,023        0.03    543,000
+Crushing bird nests (Manual)                          68              8,704        0.02    408,000
+Making dwarf weed potions                             64             24,128        0.06    384,000
+Degriming grimy lantadyme                            467              9,807        0.03    350,250
+Ruby Amulets                                         156            164,112        0.53    312,000
+Enchanting dragonstone jewellery (Autocast)          181             15,023        0.1     155,142
+Crushing bird nests (Auto)                            68              8,704        0.06    136,000
+Emerald Rings                                        150            269,250        0.9     300,000
+Humidify Clay                                        167             63,126        0.38    167,000
+Diamond Necklaces                                     50             27,250        0.27    100,000
+Ruby Necklaces                                        66             69,432        0.53    132,000
+Ruby Rings                                            41             43,132        0.53     82,000
+Diamond Rings                                         10              5,450        0.27     20,000
+Emerald Necklaces                                     42             75,390        0.9      84,000
+Sapphire Necklaces                                    93            267,189        1.44    186,000
+Emerald Amulets                                       37             66,415        0.9      74,000
+Sapphire Rings                                        79            226,967        1.44    158,000
+Sapphire Amulets                                      45            129,285        1.44     90,000
+Making Guthix rests                                  563            283,752      N/A           N/A
+
+##################################################################################################
+
+Making ranarr potions
+Item                          Amount    To Buy    Price    Total Price    Total Time (h)    Profit/Recipe Time (GP/h)
+--------------------------  --------  --------  -------  -------------  ----------------  ---------------------------
+Inputs (Base)
+Ranarr weed                        1       166    5,999        995,834
+Vial of water                      1       166        4            664
+Total (Base)                                      6,003        996,498
+
+Outputs (Base)
+Ranarr potion (unf)                1       166    6,500      1,079,000
+Total (w/Tax Base)                                6,435      1,068,210
+
+Profit/Loss (Base)                                  432         71,712              0.03                    2,592,000
+
+
+Inputs (2.50% margin)
+Ranarr weed                        1       162    6,148        995,976
+Vial of water                      1       162        4            648
+Total (2.50% margin)                              6,152        996,624
+
+Outputs (2.50% margin)
+Ranarr potion (unf)                1       162    6,337      1,026,594
+Total (w/Tax 2.50% margin)                        6,274      1,016,388
+
+Profit/Loss (2.50% margin)                          122         19,764              0.03                      732,000
+
+#####################################################################################################################
+
+Degriming grimy cadantine
+Item                          Amount    To Buy    Price    Total Price    Total Time (h)    Profit/Recipe Time (GP/h)
+--------------------------  --------  --------  -------  -------------  ----------------  ---------------------------
+Inputs (Base)
+Grimy cadantine                   27       243    3,705        900,315
+Nature rune                        2        18      148          2,664
+Total (Base)                                    100,331        902,979
+
+Outputs (Base)
+Cadantine                         27       243    3,854        936,522
+Total (w/Tax Base)                              103,018        927,162
+
+Profit/Loss (Base)                                2,687         24,183              0.01                    2,015,250
+
+
+Inputs (2.50% margin)
+Grimy cadantine                   27       243    3,797        922,671
+Nature rune                        2        18      151          2,718
+Total (2.50% margin)                            102,821        925,389
+
+Outputs (2.50% margin)
+Cadantine                         27       243    3,757        912,951
+Total (w/Tax 2.50% margin)                      100,425        903,825
+
+Profit/Loss (2.50% margin)                       -2,396        -21,564              0.01                   -1,797,000
+
+#####################################################################################################################
+
+Making snapdragon potions
+Item                          Amount    To Buy    Price    Total Price    Total Time (h)    Profit/Recipe Time (GP/h)
+--------------------------  --------  --------  -------  -------------  ----------------  ---------------------------
+Inputs (Base)
+Snapdragon                         1       141    7,056        994,896
+Vial of water                      1       141        4            564
+Total (Base)                                      7,060        995,460
+
+Outputs (Base)
+Snapdragon potion (unf)            1       141    7,399      1,043,259
+Total (w/Tax Base)                                7,326      1,032,966
+
+Profit/Loss (Base)                                  266         37,506              0.02                    1,596,000
+
+
+Inputs (2.50% margin)
+Snapdragon                         1       138    7,232        998,016
+Vial of water                      1       138        4            552
+Total (2.50% margin)                              7,236        998,568
+
+Outputs (2.50% margin)
+Snapdragon potion (unf)            1       138    7,214        995,532
+Total (w/Tax 2.50% margin)                        7,142        985,596
+
+Profit/Loss (2.50% margin)                          -94        -12,972              0.02                     -564,000
+
+#####################################################################################################################
+

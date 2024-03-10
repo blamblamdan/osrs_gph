@@ -1,0 +1,43 @@
+title = "profit_margins.py back-end settings file."
+
+[API_settings]
+url = "https://prices.runescape.wiki/api/v1/osrs"
+timespan = "latest" # "latest", "5m", "1h"
+[API_settings.auth_headers] # default headers for all requests
+User-Agent = 'profit_margins - @blamblamdan'
+
+[filepaths.data]
+price_data = "api_data/price_data.json"
+id_to_name = "lookup_data/id_to_name.json"
+name_to_id = "lookup_data/name_to_id.json"
+
+[filepaths.recipes]
+recipe_data = "lookup_data/recipes.json"
+ignore_items = [ # Buy limit, or just unwanted items
+
+]
+
+[filepaths.results]
+optimal = "results/optimal_overview.txt"
+lookup = "results/recipe_lookup.txt"
+
+
+[profit_settings.money]
+coins = 1_000_000
+percent_margin = 2.5
+
+[profit_settings.display.frontend]
+display_number = 0 # 0 for all
+show_top = 3
+
+[profit_settings.display.backend]
+profiting = true
+show_hidden = false
+reverse=true
+
+
+
+[profit_settings.weights]
+margin_to_time = 1e-2 # against 1/10**(pow10_coins-1)
+time = -2.0 # Minimise time
+gp_h = 1e-5 # Maximise gp/h

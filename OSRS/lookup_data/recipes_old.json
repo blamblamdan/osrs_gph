@@ -1,0 +1,17 @@
+{
+    "Opening sinister chests": {
+        "inputs": {
+            "Sinister key": 1,
+            "Law rune": 0.05
+        },
+        "outputs":{
+            "Grimy torstol": 1,
+            "Grimy avantoe": 1,
+            "Grimy kwuarm": 1,
+            "Grimy irit leaf": 1,
+            "Grimy harralander": 2,
+            "Grimy ranarr weed": 3
+        },
+        "time":9
+    }
+}
