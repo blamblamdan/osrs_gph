@@ -1,43 +1,23 @@
-#![allow(unused_imports)]
 use core::fmt;
-use std::any::Any;
-
-use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::fmt::{Debug, Display, Formatter};
-use std::fs::{File, Metadata};
-use std::hash::Hash;
-use std::io::{BufReader, BufWriter, Read};
+use std::io::{BufReader, Read};
+use std::path::Path;
 
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-
-use osrs_gph::errors::Custom;
-use osrs_gph::item_search::{Item, ItemSearch, Recipe, RecipeBook};
-use osrs_gph::pareto_sort::compute_weights;
 use reqwest::blocking::Response;
-use reqwest::header::{HeaderMap, WARNING};
-use serde::{Deserialize, Serialize};
-
-use slog::{crit, debug, error, info, log, trace, warn, Level, Logger};
-use sloggers::types::{self, Format, Severity};
+use serde::Deserialize;
+use slog::{debug, info, Level, Logger};
+use sloggers::types::Format;
 use toml::{Table, Value};
 
-use osrs_gph::convenience::Input;
-use osrs_gph::convenience::{self, input};
-use osrs_gph::logging::{LogConfig, Logging};
-
 use osrs_gph::log_panic;
-
 use osrs_gph::api::{APIHeaders, FromTable, API};
-use osrs_gph::file_io::FileIO;
-
+use osrs_gph::convenience::{self, Input};
 use osrs_gph::data_types::PriceDataType;
-
-// use url::{Url, ParseError, ParseOptions};
-use reqwest::{blocking, IntoUrl};
-
-use serde::de::{DeserializeOwned, IntoDeserializer};
+use osrs_gph::errors::Custom;
+use osrs_gph::file_io::FileIO;
+use osrs_gph::item_search::{Item, ItemSearch, Recipe, RecipeBook};
+use osrs_gph::logging::{LogConfig, Logging};
+use osrs_gph::pareto_sort::compute_weights;
 
 #[allow(unused_macros)]
 macro_rules! early_exit {
