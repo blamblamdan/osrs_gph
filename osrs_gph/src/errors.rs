@@ -1,11 +1,10 @@
 #[derive(Debug)]
 pub enum Custom {
-    IoError(std::io::Error), // FileIO errors
+    IoError(std::io::Error),       // FileIO errors
     SerdeError(serde_json::Error), // Serde de/serialisation errors
 }
 
-
-impl From<std::io::Error> for Custom{
+impl From<std::io::Error> for Custom {
     fn from(err: std::io::Error) -> Self {
         Custom::IoError(err)
     }
@@ -21,7 +20,7 @@ impl std::fmt::Display for Custom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Custom::IoError(e) => write!(f, "{e}"),
-            Custom::SerdeError(e) => write!(f, "{e}")
+            Custom::SerdeError(e) => write!(f, "{e}"),
         }
     }
 }
@@ -39,7 +38,7 @@ impl From<serde_json::Error> for Custom {
     fn from(value: serde_json::Error) -> Self {
         match value.io_error_kind() {
             Some(e1) => Custom::IoError(e1.into()), // io::Error
-            None => Custom::SerdeError(value) // Serde Error
+            None => Custom::SerdeError(value),      // Serde Error
         }
     }
 }

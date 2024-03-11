@@ -1,7 +1,7 @@
 use reqwest::blocking::Response;
 
-use slog::{error, Logger};
 use slog::{debug, info, warn};
+use slog::{error, Logger};
 
 use slog::Level;
 use sloggers::types::{Format, Severity};
@@ -186,35 +186,42 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
 
     fn rewind(&self, file: &mut File) {
         // Need to rewind cursor just in case this isn't first operation
-        let Ok(curr_pos) = file.stream_position() else { log_panic!(
-            &self.logger,
-            Level::Error,
-            "Error seeking cursor of {}",
-            &self.object.filename
-        )};
+        let Ok(curr_pos) = file.stream_position() else {
+            log_panic!(
+                &self.logger,
+                Level::Error,
+                "Error seeking cursor of {}",
+                &self.object.filename
+            )
+        };
 
         if curr_pos == 0 {
-            return // Early exit. Don't rewind if not needed.
+            return; // Early exit. Don't rewind if not needed.
         }
 
-        if let Ok(()) = (file).rewind() { 
+        if let Ok(()) = (file).rewind() {
             info!(&self.logger, "Rewound cursor of {}", &self.object.filename);
-        } else { log_panic!(
-            &self.logger,
-            Level::Error,
-            "Error rewinding cursor of {}",
-            &self.object.filename
-        );}
+        } else {
+            log_panic!(
+                &self.logger,
+                Level::Error,
+                "Error rewinding cursor of {}",
+                &self.object.filename
+            );
+        }
     }
 
     pub fn has_data(&self, f: &File) -> bool {
-        if let Ok(m) = self.metadata(f) { m.len() > 0 } 
-        else { log_panic!(
-            &self.logger,
-            Level::Critical,
-            "Couldn't read metadata from {}",
-            &self.object.filename
-        )}
+        if let Ok(m) = self.metadata(f) {
+            m.len() > 0
+        } else {
+            log_panic!(
+                &self.logger,
+                Level::Critical,
+                "Couldn't read metadata from {}",
+                &self.object.filename
+            )
+        }
     }
 
     /// # Errors
@@ -333,7 +340,9 @@ impl<'a, S: AsRef<str> + IntoUrl + Clone + Debug + Display> Logging<'a, API<S>> 
     }
 }
 
-impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path>+std::fmt::Display> Logging<'a, ItemSearch<'ba, 'bb, 'bc, S>> {
+impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path> + std::fmt::Display>
+    Logging<'a, ItemSearch<'ba, 'bb, 'bc, S>>
+{
     pub fn new<H: Into<HashMap<String, Item>>>(
         logger: &'a Logger,
         price_data_handler: Logging<'ba, FileIO<S>>,
@@ -369,55 +378,82 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path>+std::fmt::Display> Logging<'a, ItemSearch
         self.populate_items();
     }
 
-    fn populate_id_to_name(&mut self){
+    fn populate_id_to_name(&mut self) {
         let i2n = &mut self.object.id_to_name_handler;
         self.object.id_to_name = match i2n.read::<HashMap<String, String>>() {
             Ok(o) => o,
-            Err(e) => log_panic!(&self.logger, Level::Error, "Failed to populate id_to_name: {}", e),
+            Err(e) => log_panic!(
+                &self.logger,
+                Level::Error,
+                "Failed to populate id_to_name: {}",
+                e
+            ),
         };
     }
-    fn populate_name_to_id(&mut self){
+    fn populate_name_to_id(&mut self) {
         let n2i = &mut self.object.name_to_id_handler;
         self.object.name_to_id = match n2i.read() {
             Ok(o) => o,
-            Err(e) => log_panic!(&self.logger, Level::Error, "Failed to populate id_to_name: {}", e),
+            Err(e) => log_panic!(
+                &self.logger,
+                Level::Error,
+                "Failed to populate id_to_name: {}",
+                e
+            ),
         }
     }
-    pub fn populate_lookups(&mut self){
+    pub fn populate_lookups(&mut self) {
         self.populate_name_to_id();
         self.populate_id_to_name();
     }
 
     pub fn ignore_items(&mut self, ignore: &[String]) -> i32 {
         debug!(&self.logger, "Removing ignored items.");
-        match ignore.iter().filter_map(|x| self.object.items.remove(x)).count().try_into() {
-            Ok(n) => {debug!(&self.logger, "Removed {n} ignored items.");n},
-            Err(e) => log_panic!(&self.logger, Level::Error, "Number of ignored items is too big: {}", e),
+        match ignore
+            .iter()
+            .filter_map(|x| self.object.items.remove(x))
+            .count()
+            .try_into()
+        {
+            Ok(n) => {
+                debug!(&self.logger, "Removed {n} ignored items.");
+                n
+            }
+            Err(e) => log_panic!(
+                &self.logger,
+                Level::Error,
+                "Number of ignored items is too big: {}",
+                e
+            ),
         }
     }
 
     pub fn populate_items(&mut self) {
         // Load item data
         let item_data = match self.object.price_data_handler.read::<PriceDataType>() {
-            Ok(d) => {info!(&self.logger, "Read success."); d.data},
-            Err(e) => log_panic!(&self.logger, Level::Error, "Failed to read file: {:?}",e)
-        };// item_id(String) => item_datum
-        
+            Ok(d) => {
+                info!(&self.logger, "Read success.");
+                d.data
+            }
+            Err(e) => log_panic!(&self.logger, Level::Error, "Failed to read file: {:?}", e),
+        }; // item_id(String) => item_datum
+
         // Create item object for each item
         for (item_id, item_datum) in item_data {
             // Check if item_data is even valid
             if item_datum.invalid_data() {
-                continue
+                continue;
             }
 
-
-            let item_name = if let Some(s) = self.object.id_to_name.get(&item_id) { s.to_string() } 
-            else {
+            let item_name = if let Some(s) = self.object.id_to_name.get(&item_id) {
+                s.to_string()
+            } else {
                 log_warning!(
-                    &self.logger, "Item ID {item_id:?} not found in {}",
+                    &self.logger,
+                    "Item ID {item_id:?} not found in {}",
                     &self.object.id_to_name_handler.object.filename
                 );
-                continue
+                continue;
             };
 
             // Otherwise create item and append
@@ -428,13 +464,17 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path>+std::fmt::Display> Logging<'a, ItemSearch
     }
 }
 
-
 impl<'a> Logging<'a, RecipeBook> {
     #[must_use]
     pub fn new(logger: &'a Logger, object: RecipeBook) -> Self {
-        Self {logger, object}
+        Self { logger, object }
     }
-    pub fn initalize<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display, R: Into<Recipe>>(&mut self, all_items: &Logging<ItemSearch<IS>>, recipe_path:S, recipes: Option<Vec<R>>) {
+    pub fn initalize<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display, R: Into<Recipe>>(
+        &mut self,
+        all_items: &Logging<ItemSearch<IS>>,
+        recipe_path: S,
+        recipes: Option<Vec<R>>,
+    ) {
         if let Some(recipe_list) = recipes {
             // Need to convert each item into Recipe
             let parsed: Vec<Recipe> = recipe_list.into_iter().map(Into::into).collect();
@@ -452,33 +492,37 @@ impl<'a> Logging<'a, RecipeBook> {
         }
         or
     }
-    pub fn load_default_recipes<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display>(&mut self, _all_items: &Logging<ItemSearch<IS>>, recipe_path:S){
-        let mut recipes_fio = Logging::<FileIO<S>>::new(
-            self.logger,
-            recipe_path,
-        );
+    pub fn load_default_recipes<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display>(
+        &mut self,
+        _all_items: &Logging<ItemSearch<IS>>,
+        recipe_path: S,
+    ) {
+        let mut recipes_fio = Logging::<FileIO<S>>::new(self.logger, recipe_path);
         let mut recipe_list: Vec<Recipe> = match recipes_fio.read::<HashMap<String, Recipe>>() {
             Ok(l) => l.into_values().collect(),
-            Err(e) => log_panic!(&self.logger, Level::Error, "Failed to load recipes. {}", e)
+            Err(e) => log_panic!(&self.logger, Level::Error, "Failed to load recipes. {}", e),
         };
-        
+
         // Filer out invalid recipes; using .isvalid()
         // Log any invalid recipes
         let before_len = recipe_list.len();
-        recipe_list.retain(|r|
-            if r.isvalid() { true }
-            else { 
+        recipe_list.retain(|r| {
+            if r.isvalid() {
+                true
+            } else {
                 log_warning!(&self.logger, "Skipping recipe: {}", r.name);
                 false
             }
+        });
+        debug!(
+            &self.logger,
+            "Filtered out {} invalid recipes.",
+            before_len - recipe_list.len()
         );
-        debug!(&self.logger, "Filtered out {} invalid recipes.",before_len - recipe_list.len());
 
         self.object.add_from_list(recipe_list);
         self.object.remove_recipe("Template");
         debug!(&self.logger, "Loaded {} recipes.", self.object.len());
         // dbg!(&self.object.recipes);
     }
-
-    
 }

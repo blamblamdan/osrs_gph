@@ -157,20 +157,18 @@ fn main() {
     item_search_s.ignore_items(&ignore_items);
 
     // Load recipes
-    let recipe_fp:String = match String::deserialize(config["filepaths"]["recipes"]["recipe_data"].clone()) {
-        Ok(fp) => fp,
-        Err(e) => log_panic!(
-            &logger,
-            Level::Error,
-            "Failed to parse recipe filepath: {}",
-            e
-        ),
-    };
+    let recipe_fp: String =
+        match String::deserialize(config["filepaths"]["recipes"]["recipe_data"].clone()) {
+            Ok(fp) => fp,
+            Err(e) => log_panic!(
+                &logger,
+                Level::Error,
+                "Failed to parse recipe filepath: {}",
+                e
+            ),
+        };
     info!(&logger, "Loading: Recipes from {}", &recipe_fp);
-    let mut recipe_book = Logging::<RecipeBook>::new(
-        &logger,
-        RecipeBook::default()
-    );
+    let mut recipe_book = Logging::<RecipeBook>::new(&logger, RecipeBook::default());
     recipe_book.initalize(&item_search_s, &recipe_fp, None::<Vec<Recipe>>);
 
     // TODO compute weights, price_calc and display
@@ -181,29 +179,26 @@ fn main() {
             Level::Error,
             "Failed to parse number of coins: {}",
             e
-        )
+        ),
     };
-    let _pmargin = match f32::deserialize(config["profit_settings"]["money"]["percent_margin"].clone()) {
-        Ok(c) => c,
-        Err(e) => log_panic!(
-            &logger,
-            Level::Error,
-            "Failed to parse percent margin: {}",
-            e
-        )
-    };
-    let weights: Vec<f32> = match HashMap::<String, f32>::deserialize(config["profit_settings"]["weights"].clone()) {
-        Ok(w) => {
-            let v = vec![w["margin_to_time"], w["time"], w["gp_h"]];
-            compute_weights(&v)
-        },
-        Err(e) => log_panic!(
-            &logger,
-            Level::Error,
-            "Failed to parse weights: {}",
-            e
-        )
-    };
+    let _pmargin =
+        match f32::deserialize(config["profit_settings"]["money"]["percent_margin"].clone()) {
+            Ok(c) => c,
+            Err(e) => log_panic!(
+                &logger,
+                Level::Error,
+                "Failed to parse percent margin: {}",
+                e
+            ),
+        };
+    let weights: Vec<f32> =
+        match HashMap::<String, f32>::deserialize(config["profit_settings"]["weights"].clone()) {
+            Ok(w) => {
+                let v = vec![w["margin_to_time"], w["time"], w["gp_h"]];
+                compute_weights(&v)
+            }
+            Err(e) => log_panic!(&logger, Level::Error, "Failed to parse weights: {}", e),
+        };
     dbg!(&weights);
 }
 
@@ -233,8 +228,11 @@ fn write_api_data<S: AsRef<Path> + fmt::Display>(
 }
 
 fn setup_api_headers(logger: &Logger, headers: &Value) -> APIHeaders {
-    if let Some(a) = headers.as_table() { APIHeaders::from_table_ref(a) }
-    else { log_panic!(logger, Level::Critical, "Auth headers could not be parsed") }
+    if let Some(a) = headers.as_table() {
+        APIHeaders::from_table_ref(a)
+    } else {
+        log_panic!(logger, Level::Critical, "Auth headers could not be parsed")
+    }
 }
 
 fn setup_api<'a>(logger: &'a Logger, api_settings: &Table) -> Logging<'a, API<String>> {

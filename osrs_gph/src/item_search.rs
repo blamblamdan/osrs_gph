@@ -13,7 +13,7 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize)]
 pub struct Item {
-    pub name: String, // TODO: Consider switching to &str if not needed.
+    pub name: String,    // TODO: Consider switching to &str if not needed.
     pub item_id: String, // i32
     pub item_prices: PriceDatum,
 }
@@ -24,20 +24,21 @@ impl PartialEq for Item {
         self.item_id == other.item_id
     }
 }
-impl Eq for Item {} 
+impl Eq for Item {}
 impl Hash for Item {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.item_id.hash(state);
     }
 }
 
-pub struct ItemSearch<'a,'b,'c, S: AsRef<Path>> { // Curse of logging wrapper...
-    pub price_data_handler: Logging<'a, FileIO<S>>, 
+pub struct ItemSearch<'a, 'b, 'c, S: AsRef<Path>> {
+    // Curse of logging wrapper...
+    pub price_data_handler: Logging<'a, FileIO<S>>,
     pub id_to_name_handler: Logging<'b, FileIO<S>>,
     pub name_to_id_handler: Logging<'c, FileIO<S>>,
     pub items: HashMap<String, Item>,
     pub name_to_id: HashMap<String, String>,
-    pub id_to_name: HashMap<String, String>
+    pub id_to_name: HashMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -46,16 +47,16 @@ pub struct ItemSearch<'a,'b,'c, S: AsRef<Path>> { // Curse of logging wrapper...
 pub enum RecipeTime {
     Time(f32),
     #[default]
-    INVALID
+    INVALID,
 }
-
 
 impl<'de> Deserialize<'de> for RecipeTime {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de> {
+    where
+        D: serde::Deserializer<'de>,
+    {
         struct RecipeTimeVisitor;
-        impl <'de> Visitor<'de> for RecipeTimeVisitor {
+        impl<'de> Visitor<'de> for RecipeTimeVisitor {
             type Value = RecipeTime;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -63,26 +64,30 @@ impl<'de> Deserialize<'de> for RecipeTime {
             }
 
             fn visit_none<E>(self) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok(RecipeTime::INVALID)
             }
             #[allow(clippy::cast_possible_truncation)]
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok((v as f32).into())
             }
             #[allow(clippy::cast_precision_loss)]
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok((v as f32).into())
             }
             #[allow(clippy::cast_precision_loss)]
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok((v as f32).into())
             }
         }
@@ -90,42 +95,55 @@ impl<'de> Deserialize<'de> for RecipeTime {
         if let Err(e) = de {
             if e.to_string().contains("missing field") {
                 Ok(RecipeTime::INVALID)
-            } else { Err(e) }
+            } else {
+                Err(e)
+            }
         } else {
             de
         }
     }
 }
 
-
-
 #[derive(Debug, Deserialize, Default)]
 pub struct Recipe {
     pub name: String,
     pub inputs: HashMap<String, f32>,
     pub outputs: HashMap<String, f32>,
-    pub time: RecipeTime
+    pub time: RecipeTime,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct RecipeBook {
-    pub recipes: HashMap<String, Recipe>
+    pub recipes: HashMap<String, Recipe>,
 }
 
-impl<'a,'b,'c, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a,'b,'c, S> {
-    pub fn new(price_data_handler: Logging<'a, FileIO<S>>, 
-    id_to_name_handler: Logging<'b, FileIO<S>>,
-    name_to_id_handler: Logging<'c, FileIO<S>>,
-    items: HashMap<String, Item>) -> Self { // Using Item Name(String)=>Item(Object)
-        Self { price_data_handler, id_to_name_handler, name_to_id_handler, items,
-        name_to_id: HashMap::new(), id_to_name: HashMap::new()}
+impl<'a, 'b, 'c, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a, 'b, 'c, S> {
+    pub fn new(
+        price_data_handler: Logging<'a, FileIO<S>>,
+        id_to_name_handler: Logging<'b, FileIO<S>>,
+        name_to_id_handler: Logging<'c, FileIO<S>>,
+        items: HashMap<String, Item>,
+    ) -> Self {
+        // Using Item Name(String)=>Item(Object)
+        Self {
+            price_data_handler,
+            id_to_name_handler,
+            name_to_id_handler,
+            items,
+            name_to_id: HashMap::new(),
+            id_to_name: HashMap::new(),
+        }
     }
 }
 
-impl Item{
+impl Item {
     #[must_use]
     pub fn new(name: String, id: String, price_data: PriceDatum) -> Self {
-        Self{name, item_id: id, item_prices: price_data}
+        Self {
+            name,
+            item_id: id,
+            item_prices: price_data,
+        }
     }
     #[must_use]
     pub fn invalid_data(&self) -> bool {
@@ -143,14 +161,24 @@ impl Item{
     pub fn price_tuple(&self) -> HashMap<String, Option<i32>> {
         HashMap::from_iter([
             ("high".to_owned(), self.item_prices.high),
-            ("low".to_owned(), self.item_prices.low)
+            ("low".to_owned(), self.item_prices.low),
         ])
     }
 }
 
 impl Recipe {
-    pub fn new<S: Into<String>, T: Into<RecipeTime>>(name: S, inputs: HashMap<String, f32>, outputs: HashMap<String, f32>, time: T ) -> Self {
-        Self{name: name.into(), inputs, outputs, time: time.into()}
+    pub fn new<S: Into<String>, T: Into<RecipeTime>>(
+        name: S,
+        inputs: HashMap<String, f32>,
+        outputs: HashMap<String, f32>,
+        time: T,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            inputs,
+            outputs,
+            time: time.into(),
+        }
     }
     #[must_use]
     pub fn isvalid(&self) -> bool {
@@ -159,10 +187,12 @@ impl Recipe {
 }
 
 impl RecipeBook {
-    pub fn new<H: Into<HashMap<String, Recipe>>>(recipes: H) -> Self{
-        Self{recipes: recipes.into()}
+    pub fn new<H: Into<HashMap<String, Recipe>>>(recipes: H) -> Self {
+        Self {
+            recipes: recipes.into(),
+        }
     }
-    pub fn add_recipe(&mut self, recipe: Recipe) -> Option<Recipe>{
+    pub fn add_recipe(&mut self, recipe: Recipe) -> Option<Recipe> {
         self.recipes.insert(recipe.name.clone(), recipe)
     }
     pub fn add_from_list(&mut self, recipe_list: Vec<Recipe>) {
@@ -171,7 +201,7 @@ impl RecipeBook {
             self.add_recipe(recipe);
         }
     }
-    pub fn remove_recipe<S: Into<String>>(&mut self, recipe_name: S) -> Option<Recipe>{
+    pub fn remove_recipe<S: Into<String>>(&mut self, recipe_name: S) -> Option<Recipe> {
         self.recipes.remove(&recipe_name.into())
     }
     #[must_use]
@@ -190,7 +220,7 @@ impl RecipeBook {
 
 impl From<HashMap<String, Recipe>> for RecipeBook {
     fn from(recipes: HashMap<String, Recipe>) -> Self {
-        Self {recipes}
+        Self { recipes }
     }
 }
 
@@ -200,7 +230,6 @@ impl RecipeTime {
         !matches!(self, Self::INVALID)
     }
 }
-
 
 impl<F: Into<f32>> From<F> for RecipeTime {
     fn from(value: F) -> Self {
