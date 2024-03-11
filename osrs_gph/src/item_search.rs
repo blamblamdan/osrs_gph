@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use super::file_io::FileIO;
 use super::logging::Logging;
@@ -17,6 +18,18 @@ pub struct Item {
     pub item_prices: PriceDatum,
 }
 
+// Required by HashMaps
+impl PartialEq for Item {
+    fn eq(&self, other: &Self) -> bool {
+        self.item_id == other.item_id
+    }
+}
+impl Eq for Item {} 
+impl Hash for Item {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.item_id.hash(state)
+    }
+}
 
 pub struct ItemSearch<'a,'b,'c, S: AsRef<Path>> { // Curse of logging wrapper...
     pub price_data_handler: Logging<'a, FileIO<S>>, 
@@ -110,6 +123,19 @@ impl Item{
     }
     pub fn invalid_data(&self) -> bool {
         self.item_prices.invalid_data()
+    }
+    pub fn price(&self, high_price: bool) -> Option<i32> {
+        if high_price {
+            self.item_prices.high
+        } else {
+            self.item_prices.low
+        }
+    }
+    pub fn price_tuple(&self) -> HashMap<String, Option<i32>> {
+        HashMap::from_iter([
+            ("high".to_owned(), self.item_prices.high),
+            ("low".to_owned(), self.item_prices.low)
+        ])
     }
 }
 

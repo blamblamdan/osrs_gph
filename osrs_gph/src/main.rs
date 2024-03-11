@@ -14,6 +14,7 @@ use std::str::FromStr;
 
 use osrs_gph::errors::CustomErrors;
 use osrs_gph::item_search::{Item, ItemSearch, Recipe, RecipeBook};
+use osrs_gph::pareto_sort::compute_weights;
 use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, WARNING};
 use serde::{Deserialize, Serialize};
@@ -190,8 +191,11 @@ fn main() {
             e
         )
     };
-    let weights = match HashMap::<String, f32>::deserialize(config["profit_settings"]["weights"].clone()) {
-        Ok(w) => w,
+    let weights: Vec<f32> = match HashMap::<String, f32>::deserialize(config["profit_settings"]["weights"].clone()) {
+        Ok(w) => {
+            let v = vec![w["margin_to_time"], w["time"], w["gp_h"]];
+            compute_weights(&v)
+        },
         Err(e) => log_panic!(
             &logger,
             Level::Error,
@@ -199,6 +203,7 @@ fn main() {
             e
         )
     };
+    dbg!(&weights);
 }
 
 fn api_request(log_api: &Logging<'_, API<String>>) -> PriceDataType {

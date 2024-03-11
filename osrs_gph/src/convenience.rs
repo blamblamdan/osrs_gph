@@ -9,7 +9,14 @@ use slog::{debug, Level, Logger};
 
 use crate::log_panic;
 
+pub fn floor(x: f32) -> i32 {
+    x.floor() as i32
+}
 
+/// Digits after decimal point
+pub fn f_round(x: f32, digits: usize) -> f32 {
+    format!("{:.1$}", x, digits).parse().unwrap()
+}
 
 fn flush_stout() {
     std::io::stdout().flush().ok();
