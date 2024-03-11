@@ -2,8 +2,8 @@
 # will have compiled files and executables
 osrs_gph/debug/
 osrs_gph/target/
-osrs_gph/api_data/
-osrs_gph/results/
+osrs_gph/api_data/*
+osrs_gph/results/*
 osrs_gph/*.log*
 osrs_gph/*.svg*
 
