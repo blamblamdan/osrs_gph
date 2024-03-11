@@ -9,13 +9,18 @@ use slog::{debug, Level, Logger};
 
 use crate::log_panic;
 
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
 pub fn floor(x: f32) -> i32 {
     x.floor() as i32
 }
 
+#[must_use]
 /// Digits after decimal point
+/// # Panics
+/// Panics if trucated float fails to be parsed
 pub fn f_round(x: f32, digits: usize) -> f32 {
-    format!("{:.1$}", x, digits).parse().unwrap()
+    format!("{x:.digits$}").parse().unwrap()
 }
 
 fn flush_stout() {
@@ -23,6 +28,8 @@ fn flush_stout() {
 }
 
 /// Loads config.toml file
+/// # Panics
+/// Panics if config file read fails .
 pub fn load_config<P: AsRef<Path>>(fp: P) -> Table{
     // Load file into a String
     let file = match std::fs::read_to_string(&fp) {
@@ -42,7 +49,7 @@ pub fn load_config<P: AsRef<Path>>(fp: P) -> Table{
 pub trait Input {
     /// User input convenience function
     fn input<S: AsRef<str> + Display>(&self, message: S) -> String{
-        println!("{}",message);
+        println!("{message}");
         print!(">"); // Caret for user input
         flush_stout(); // To make sure
 
@@ -59,8 +66,10 @@ pub trait Input {
 
 
 /// User input convenience function
+/// # Panics
+/// Panics if file read fails on a particular line.
 pub fn input<S: AsRef<str> + Display>(message: S) -> String{
-    println!("{}",message);
+    println!("{message}");
     print!(">"); // Caret for user input
     flush_stout(); // To make sure
 
@@ -82,7 +91,7 @@ impl Input for String {
 
 impl Input for Logger {
     fn input<S: AsRef<str> + Display>(&self, message: S) -> String {
-        println!("{}",message);
+        println!("{message}");
         print!(">"); // Caret for user input
         flush_stout(); // To make sure
 

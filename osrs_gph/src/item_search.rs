@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::error::Error;
+
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -7,7 +7,7 @@ use super::file_io::FileIO;
 use super::logging::Logging;
 use serde::de::Visitor;
 use serde::Deserialize;
-use slog::error;
+
 use super::data_types::PriceDatum;
 use std::path::Path;
 
@@ -27,7 +27,7 @@ impl PartialEq for Item {
 impl Eq for Item {} 
 impl Hash for Item {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.item_id.hash(state)
+        self.item_id.hash(state);
     }
 }
 
@@ -42,8 +42,10 @@ pub struct ItemSearch<'a,'b,'c, S: AsRef<Path>> { // Curse of logging wrapper...
 
 #[derive(Debug)]
 // #[serde(untagged)]
+#[derive(Default)]
 pub enum RecipeTime {
     Time(f32),
+    #[default]
     INVALID
 }
 
@@ -65,16 +67,19 @@ impl<'de> Deserialize<'de> for RecipeTime {
                     E: serde::de::Error, {
                 Ok(RecipeTime::INVALID)
             }
+            #[allow(clippy::cast_possible_truncation)]
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
                 where
                     E: serde::de::Error, {
                 Ok((v as f32).into())
             }
+            #[allow(clippy::cast_precision_loss)]
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
                 where
                     E: serde::de::Error, {
                 Ok((v as f32).into())
             }
+            #[allow(clippy::cast_precision_loss)]
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
                 where
                     E: serde::de::Error, {
@@ -118,12 +123,15 @@ impl<'a,'b,'c, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a,'b,'c, S> {
 }
 
 impl Item{
+    #[must_use]
     pub fn new(name: String, id: String, price_data: PriceDatum) -> Self {
         Self{name, item_id: id, item_prices: price_data}
     }
+    #[must_use]
     pub fn invalid_data(&self) -> bool {
         self.item_prices.invalid_data()
     }
+    #[must_use]
     pub fn price(&self, high_price: bool) -> Option<i32> {
         if high_price {
             self.item_prices.high
@@ -131,6 +139,7 @@ impl Item{
             self.item_prices.low
         }
     }
+    #[must_use]
     pub fn price_tuple(&self) -> HashMap<String, Option<i32>> {
         HashMap::from_iter([
             ("high".to_owned(), self.item_prices.high),
@@ -143,6 +152,7 @@ impl Recipe {
     pub fn new<S: Into<String>, T: Into<RecipeTime>>(name: S, inputs: HashMap<String, f32>, outputs: HashMap<String, f32>, time: T ) -> Self {
         Self{name: name.into(), inputs, outputs, time: time.into()}
     }
+    #[must_use]
     pub fn isvalid(&self) -> bool {
         self.time.isvalid()
     }
@@ -164,14 +174,17 @@ impl RecipeBook {
     pub fn remove_recipe<S: Into<String>>(&mut self, recipe_name: S) -> Option<Recipe>{
         self.recipes.remove(&recipe_name.into())
     }
-    // pub fn valid_recipe(&self, recipe_name: &String) -> bool {
-    //     self.recipes.contains_key(recipe_name)
-    // }
+    #[must_use]
     pub fn get_recipe(&self, recipe_name: &String) -> Option<&Recipe> {
         self.recipes.get(recipe_name)
     }
+    #[must_use]
     pub fn len(&self) -> usize {
         self.recipes.len()
+    }
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.recipes.is_empty()
     }
 }
 
@@ -182,19 +195,13 @@ impl From<HashMap<String, Recipe>> for RecipeBook {
 }
 
 impl RecipeTime {
+    #[must_use]
     pub fn isvalid(&self) -> bool {
-        match self {
-            Self::INVALID => false,
-            _ => true
-        }
+        !matches!(self, Self::INVALID)
     }
 }
 
-impl Default for RecipeTime {
-    fn default() -> Self {
-        RecipeTime::INVALID
-    }
-}
+
 impl<F: Into<f32>> From<F> for RecipeTime {
     fn from(value: F) -> Self {
         let f: f32 = value.into();

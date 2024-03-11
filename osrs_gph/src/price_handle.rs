@@ -15,6 +15,8 @@ impl<'a, 'b, 'c, S: AsRef<Path>> PriceHandle<'a, 'b, 'c, S>  {
         Self { all_items, coins, pmargin}
     }
 
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn apply_tax(profit: i32) -> i32 {
         if profit < 100 {
             profit
@@ -24,7 +26,8 @@ impl<'a, 'b, 'c, S: AsRef<Path>> PriceHandle<'a, 'b, 'c, S>  {
         }
     }
 
-    pub fn total_price(price_details: &Vec<(f32, f32)>) -> i32{
+    #[must_use]
+    pub fn total_price(price_details: &[(f32, f32)]) -> i32{
         // total price for each item is price * quantity
         let total: f32 = price_details.iter()
             .map(|t| t.0*t.1)
@@ -32,8 +35,10 @@ impl<'a, 'b, 'c, S: AsRef<Path>> PriceHandle<'a, 'b, 'c, S>  {
         floor(total)
     }
 
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     /// Calculates the total recipe time, parsing invalid times
-    pub fn recipe_time_h(recipe: Recipe, number: i32, margin: i32, total_margin: bool) -> (Option<f32>, Option<i32>) {
+    pub fn recipe_time_h(recipe: &Recipe, number: i32, margin: i32, total_margin: bool) -> (Option<f32>, Option<i32>) {
         if let RecipeTime::Time(t) = recipe.time {
             let time_h: f32 = t / (60. * 60.);
             let total_time_h:f32 = f_round(number as f32*time_h, 2);
@@ -47,7 +52,7 @@ impl<'a, 'b, 'c, S: AsRef<Path>> PriceHandle<'a, 'b, 'c, S>  {
             return (Some(total_time_h), Some(gp_h))
         
         }
-        return (None, None)
+        (None, None)
         
     }
 

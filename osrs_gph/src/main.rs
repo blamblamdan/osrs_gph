@@ -12,7 +12,7 @@ use std::io::{BufReader, BufWriter, Read};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use osrs_gph::errors::CustomErrors;
+use osrs_gph::errors::Custom;
 use osrs_gph::item_search::{Item, ItemSearch, Recipe, RecipeBook};
 use osrs_gph::pareto_sort::compute_weights;
 use reqwest::blocking::Response;
@@ -46,6 +46,7 @@ macro_rules! early_exit {
     };
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let config = convenience::load_config("config.toml"); // Load TOML file into here
     let logger_path: &str = config["filepaths"]["logging"]["log_file"]
@@ -58,7 +59,7 @@ fn main() {
     debug!(&logger, "Initialised logger.");
 
     // // Load all items into memory
-    let data_fps: &Table = &config["filepaths"]["data"].as_table().unwrap_or_else(|| {
+    let data_fps: &Table = config["filepaths"]["data"].as_table().unwrap_or_else(|| {
         log_panic!(
             &logger,
             Level::Critical,
@@ -101,7 +102,7 @@ fn main() {
         .input("1. API Refresh Data\n2. Load previous Data\n");
 
     // Load new data from API or pre-existing file data
-    match (&choice).trim_end() {
+    match choice.trim_end() {
         "1" => {
             info!(&logger, "Retrieving prices from API.");
             // Setup the API stuff
@@ -153,7 +154,7 @@ fn main() {
 
     // Setup ItemSearch
     item_search_s.initalize();
-    item_search_s.ignore_items(ignore_items);
+    item_search_s.ignore_items(&ignore_items);
 
     // Load recipes
     let recipe_fp:String = match String::deserialize(config["filepaths"]["recipes"]["recipe_data"].clone()) {
@@ -173,7 +174,7 @@ fn main() {
     recipe_book.initalize(&item_search_s, &recipe_fp, None::<Vec<Recipe>>);
 
     // TODO compute weights, price_calc and display
-    let coins = match i32::deserialize(config["profit_settings"]["money"]["coins"].clone()) {
+    let _coins = match i32::deserialize(config["profit_settings"]["money"]["coins"].clone()) {
         Ok(c) => c,
         Err(e) => log_panic!(
             &logger,
@@ -182,7 +183,7 @@ fn main() {
             e
         )
     };
-    let pmargin = match f32::deserialize(config["profit_settings"]["money"]["percent_margin"].clone()) {
+    let _pmargin = match f32::deserialize(config["profit_settings"]["money"]["percent_margin"].clone()) {
         Ok(c) => c,
         Err(e) => log_panic!(
             &logger,
@@ -207,14 +208,14 @@ fn main() {
 }
 
 fn api_request(log_api: &Logging<'_, API<String>>) -> PriceDataType {
-    let callback = |mut r: Response| -> Result<PriceDataType, CustomErrors> {
+    let callback = |mut r: Response| -> Result<PriceDataType, Custom> {
         let buffer = BufReader::new(r.by_ref()); // 400KB (So far the responses are 395KB 2024-02-02)
         match serde_json::de::from_reader(buffer) {
             Ok(o) => Ok(o),
             Err(e) => Err(e.into()),
         }
     };
-    match log_api.request("/latest".to_string(), &callback, None) {
+    match log_api.request("/latest".to_string(), callback, None) {
         Ok(d) => {
             debug!(&log_api.logger, "Deserialised API response.");
             d
@@ -226,19 +227,14 @@ fn api_request(log_api: &Logging<'_, API<String>>) -> PriceDataType {
 fn write_api_data<S: AsRef<Path> + fmt::Display>(
     price_data_io: &mut Logging<'_, FileIO<S>>,
     api_data: &PriceDataType,
-) -> Result<(), ()> {
+) -> Result<(), osrs_gph::errors::Custom> {
     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
-    match price_data_io.write(&api_data, formatter.clone()) {
-        Ok(()) => Ok(()),
-        Err(e) => log_panic!(price_data_io.logger, Level::Critical, "{}", e),
-    }
+    price_data_io.write(&api_data, formatter.clone())
 }
 
 fn setup_api_headers(logger: &Logger, headers: &Value) -> APIHeaders {
-    match headers.as_table() {
-        Some(a) => APIHeaders::from_table_ref(a),
-        None => log_panic!(logger, Level::Critical, "Auth headers could not be parsed"),
-    }
+    if let Some(a) = headers.as_table() { APIHeaders::from_table_ref(a) }
+    else { log_panic!(logger, Level::Critical, "Auth headers could not be parsed") }
 }
 
 fn setup_api<'a>(logger: &'a Logger, api_settings: &Table) -> Logging<'a, API<String>> {

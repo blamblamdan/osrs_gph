@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use prettytable::{format::TableFormat, Cell, Row, Table};
+use prettytable::{Row, Table};
 
 // type RowFormat = (String, i32, i32, f32, i32);
 type Weights = Vec<f32>;
@@ -41,8 +41,8 @@ fn ls_compare(x: &Row, y: &Row, weights: &Weights) -> Ordering {
     x_val.total_cmp(&y_val)
 }
 
-fn optimal_sort(table: Table, weights: &Weights, reverse: bool) -> Table {
-    let v_weights = compute_weights(weights); // Normalize
+fn optimal_sort(table: &Table, weights: &Weights, reverse: bool) -> Table {
+    let _v_weights = compute_weights(weights); // Normalize
     // Return sorted based on ls_compare function
     let mut row_list = table.into_iter().collect::<Vec<&Row>>();
     row_list.sort_by(|a,b| ls_compare(a,b, weights));
@@ -55,6 +55,7 @@ fn optimal_sort(table: Table, weights: &Weights, reverse: bool) -> Table {
         
 }
 
+#[must_use]
 /// Normalize weights
 pub fn compute_weights(weights: &Weights) -> Weights {
     let w_sum: f32 = weights.iter().map(|x| x.abs()).sum();

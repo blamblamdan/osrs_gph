@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+http = "0.2.11"
 prettytable-rs = "0.10.0"
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls", "blocking", "json"] }
 serde = { version = "1.0.196", features = ["derive"] } # Lower version of serde to be compatible. See https://serde.rs/derive.html/ #Troubleshooting
@@ -19,6 +20,9 @@ toml = "0.8.8"
 [profile.release]
 debug = true
 
+
+[lints.clippy]
+pedantic = "warn"
 # TODO:
 ## Find out what's causing latency...
 ### Browser requesting same data takes ~50ms-140ms (Upper bound when first initiating sequence of requests)

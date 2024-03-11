@@ -85,9 +85,9 @@ impl<'de> Deserialize<'de> for PriceDataType {
                     api_data.insert(key, value); // Should just insert "data" key
                 }
 
-                let mut a_data = api_data["data"].clone().into_iter();
-                let mut data = HashMap::<String, PriceDatum>::with_capacity((&api_data["data"]).capacity());
-                while let Some((key, value)) = a_data.next() {
+                let a_data = api_data["data"].clone().into_iter();
+                let mut data = HashMap::<String, PriceDatum>::with_capacity(api_data["data"].capacity());
+                for (key, value) in a_data {
                     data.insert(key, value); // Inserting each "id" => {...}
                 }
         
@@ -125,6 +125,7 @@ impl Serialize for PriceDataType {
 }
 
 impl PriceDatum {
+    #[must_use]
     pub fn invalid_data(&self) -> bool{ // Not valid if an item's field is None
         self.high.is_none() || self.high_time.is_none() || self.low.is_none() || self.low_time.is_none()
     }

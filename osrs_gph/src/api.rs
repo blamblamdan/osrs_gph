@@ -26,14 +26,11 @@ impl<'a, S: AsRef<str> + std::convert::From<&'a str>> Default for API<S> {
     }
 }
 
-impl Into<HeaderMap> for APIHeaders {
-    fn into(self) -> HeaderMap {
-        match HeaderMap::try_from(&self.headers) {
-            Ok(h) => h,
-            Err(_) => panic!("Header map error")
-        }
+impl TryFrom<APIHeaders> for HeaderMap {
+    type Error = http::Error;
+    fn try_from(value: APIHeaders) -> Result<Self, Self::Error> {
+        HeaderMap::try_from(&value.headers)
     }
-    
 }
 
 // impl<'a, I: Iterator<Item = (&'a String, &'a String)>> FromIterator<I> for APIHeaders{
@@ -61,7 +58,7 @@ impl Extend<HashMap<String, String>> for APIHeaders {
 }
 impl Extend<(String, String)> for APIHeaders {
     fn extend<T: IntoIterator<Item = (String, String)>>(&mut self, iter: T) {
-        self.headers.extend(iter)
+        self.headers.extend(iter);
     }
 }
 
@@ -91,11 +88,8 @@ pub trait FromTable {
 impl FromTable for APIHeaders {
     fn from_table<T: Into<Table>>(t: Table) -> Self {
         let mut h: HashMap<String, String> = HashMap::new();
-        for (k,v) in t.iter() {
-            let value = match String::deserialize(v.clone()) {
-                Ok(v) => v,
-                Err(_) => continue
-            };
+        for (k,v) in &t {
+            let Ok(value) = String::deserialize(v.clone()) else { continue };
             h.insert(k.to_string(),value);
         }
         APIHeaders{
@@ -104,11 +98,8 @@ impl FromTable for APIHeaders {
     }
     fn from_table_ref(t: &Table) -> Self {
         let mut h: HashMap<String, String> = HashMap::new();
-        for (k,v) in t.iter() {
-            let value = match String::deserialize(v.clone()) {
-                Ok(v) => v,
-                Err(_) => continue
-            };
+        for (k,v) in t {
+            let Ok(value) = String::deserialize(v.clone()) else { continue };
             h.insert(k.to_string(),value);
         }
         APIHeaders{

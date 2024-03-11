@@ -25,7 +25,7 @@ use std::io::Seek;
 
 use super::api::API;
 use super::file_io::FileIO;
-use super::item_search::*;
+use super::item_search::{Item, ItemSearch, Recipe, RecipeBook};
 use reqwest::{blocking, header::HeaderMap, IntoUrl};
 
 use std::io::{BufReader, BufWriter};
@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 
 use std::time::Instant;
 
-use super::errors::CustomErrors;
+use super::errors::Custom;
 
 /// Derived from `info!` from slog.
 /// Logs message then panics.
@@ -101,6 +101,8 @@ impl<S: AsRef<Path>> LogConfig<S> {
         }
     }
     /// Creates (file) logger from provided config
+    /// # Panics
+    /// Panics when building Logger fails.
     pub fn create_logger(&self) -> Logger {
         // Logger config
         let mut logger_builder: FileLoggerBuilder = FileLoggerBuilder::new(&self.filename);
@@ -117,7 +119,7 @@ impl<S: AsRef<Path>> LogConfig<S> {
 }
 
 impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
-    /// See Self::with_options for specifying custom options.
+    /// See [`Self::with_options`] for specifying custom options.
     /// options: (Read: true, Write: false, Create: false)
     pub fn new(logger: &'a Logger, filename: S) -> Logging<'a, FileIO<S>> {
         Self::with_options(logger, filename, [true, false, false])
@@ -153,7 +155,7 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
     }
     // Is this the best way?
     pub fn file(&mut self) -> File {
-        let [read, write, create] = self.object.options.into();
+        let [read, write, create] = self.object.options;
         let filename = &self.object.filename;
         match std::fs::OpenOptions::new()
             .read(read)
@@ -169,6 +171,8 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
         }
     }
 
+    /// # Errors
+    /// See [`std::fs::File::metadata`].
     pub fn metadata(&self, f: &File) -> io::Result<Metadata> {
         f.metadata()
     }
@@ -182,47 +186,44 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
 
     fn rewind(&self, file: &mut File) {
         // Need to rewind cursor just in case this isn't first operation
-        let curr_pos = match file.stream_position() {
-            Ok(pos) => pos,
-            Err(_) => log_panic!(
-                &self.logger,
-                Level::Error,
-                "Error seeking cursor of {}",
-                &self.object.filename
-            ),
-        };
-        match curr_pos {
-            0 => return, // Early exit. Don't rewind if not needed.
-            _ => (),     // Need to rewind to start.
+        let Ok(curr_pos) = file.stream_position() else { log_panic!(
+            &self.logger,
+            Level::Error,
+            "Error seeking cursor of {}",
+            &self.object.filename
+        )};
+
+        if curr_pos == 0 {
+            return // Early exit. Don't rewind if not needed.
         }
-        match (file).rewind() {
-            Ok(_) => info!(&self.logger, "Rewound cursor of {}", &self.object.filename),
-            Err(_) => log_panic!(
-                &self.logger,
-                Level::Error,
-                "Error rewinding cursor of {}",
-                &self.object.filename
-            ),
-        }
+
+        if let Ok(()) = (file).rewind() { 
+            info!(&self.logger, "Rewound cursor of {}", &self.object.filename);
+        } else { log_panic!(
+            &self.logger,
+            Level::Error,
+            "Error rewinding cursor of {}",
+            &self.object.filename
+        );}
     }
 
     pub fn has_data(&self, f: &File) -> bool {
-        match self.metadata(f) {
-            Ok(m) => m.len() > 0,
-            Err(_) => log_panic!(
-                &self.logger,
-                Level::Critical,
-                "Couldn't read metadata from {}",
-                &self.object.filename
-            ),
-        }
+        if let Ok(m) = self.metadata(f) { m.len() > 0 } 
+        else { log_panic!(
+            &self.logger,
+            Level::Critical,
+            "Couldn't read metadata from {}",
+            &self.object.filename
+        )}
     }
 
+    /// # Errors
+    /// When file does not exist or serialization fails.
     pub fn write<J: Serialize, F: serde_json::ser::Formatter>(
         &mut self,
         data: &J,
         format: F,
-    ) -> Result<(), CustomErrors> {
+    ) -> Result<(), Custom> {
         let mut file = self.file(); // Open once
         if !Self::file_exists(&file) {
             warn!(
@@ -242,15 +243,17 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
         // DEBUG
         let now = Instant::now();
         match data.serialize(&mut serialiser) {
-            Ok(_) => {
+            Ok(()) => {
                 println!("Wrote file in {:?}", now.elapsed()); // DEBUG
                 Ok(())
             }
-            Err(e) => Err(CustomErrors::convert(e)),
+            Err(e) => Err(e.into()),
         }
     }
 
-    pub fn read<'de, T: Deserialize<'de>>(&mut self) -> Result<T, CustomErrors> {
+    /// # Errors
+    /// Errors when the file does not exist or deserialization fails.
+    pub fn read<'de, T: Deserialize<'de>>(&mut self) -> Result<T, Custom> {
         let mut file = self.file(); // Open once
         if !self.has_data(&file) {
             warn!(
@@ -258,7 +261,7 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
                 "Attempted to read non-existent file {}", &self.object.filename
             );
             // return Err(io::ErrorKind::NotFound.into());
-            return Err(CustomErrors::IoError(io::ErrorKind::NotFound.into()));
+            return Err(Custom::IoError(io::ErrorKind::NotFound.into()));
         };
         self.rewind(&mut file);
         info!(&self.logger, "Reading file {}", &self.object.filename);
@@ -275,7 +278,7 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
                 println!("Read file in {:?}", now.elapsed()); // DEBUG
                 Ok(t)
             }
-            Err(e) => Err(CustomErrors::convert(e)),
+            Err(e) => Err(e.into()),
         }
     }
 }
@@ -294,11 +297,11 @@ impl<'a, S: AsRef<str> + IntoUrl + Clone + Debug + Display> Logging<'a, API<S>> 
     ) -> R {
         // Merge headers prioritising new
         let newheaders: APIHeaders = match headers {
-            Some(h) => {
-                let mut _h = self.object.headers.clone();
+            Some(heads) => {
+                let mut h = self.object.headers.clone();
                 // Replace with new entries
-                _h.extend(h.clone());
-                _h
+                h.extend(heads.clone());
+                h
             }
             None => self.object.headers.clone(),
         };
@@ -308,7 +311,7 @@ impl<'a, S: AsRef<str> + IntoUrl + Clone + Debug + Display> Logging<'a, API<S>> 
             Err(e) => log_panic!(&self.logger, Level::Critical, "Header_map error: {}", e),
         };
 
-        let u = self.object.api_url.clone().to_string() + &endpoint.to_string();
+        let u = self.object.api_url.clone().to_string() + endpoint.as_ref();
 
         let client = blocking::Client::new();
         let res_build = client.get(u).headers(header_map);
@@ -385,7 +388,7 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path>+std::fmt::Display> Logging<'a, ItemSearch
         self.populate_id_to_name();
     }
 
-    pub fn ignore_items(&mut self, ignore: Vec<String>) -> i32 {
+    pub fn ignore_items(&mut self, ignore: &[String]) -> i32 {
         debug!(&self.logger, "Removing ignored items.");
         match ignore.iter().filter_map(|x| self.object.items.remove(x)).count().try_into() {
             Ok(n) => {debug!(&self.logger, "Removed {n} ignored items.");n},
@@ -407,9 +410,14 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path>+std::fmt::Display> Logging<'a, ItemSearch
                 continue
             }
 
-            let item_name = match self.object.id_to_name.get(&item_id){
-                Some(s) => s.to_string(),
-                None => {log_warning!(&self.logger, "Item ID {item_id:?} not found in {}", &self.object.id_to_name_handler.object.filename);continue},
+
+            let item_name = if let Some(s) = self.object.id_to_name.get(&item_id) { s.to_string() } 
+            else {
+                log_warning!(
+                    &self.logger, "Item ID {item_id:?} not found in {}",
+                    &self.object.id_to_name_handler.object.filename
+                );
+                continue
             };
 
             // Otherwise create item and append
@@ -422,19 +430,21 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path>+std::fmt::Display> Logging<'a, ItemSearch
 
 
 impl<'a> Logging<'a, RecipeBook> {
+    #[must_use]
     pub fn new(logger: &'a Logger, object: RecipeBook) -> Self {
         Self {logger, object}
     }
     pub fn initalize<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display, R: Into<Recipe>>(&mut self, all_items: &Logging<ItemSearch<IS>>, recipe_path:S, recipes: Option<Vec<R>>) {
         if let Some(recipe_list) = recipes {
             // Need to convert each item into Recipe
-            let parsed: Vec<Recipe> = recipe_list.into_iter().map(|r| r.into()).collect();
+            let parsed: Vec<Recipe> = recipe_list.into_iter().map(Into::into).collect();
             self.object.add_from_list(parsed);
             self.object.remove_recipe("Template");
         } else {
-            self.load_default_recipes(all_items, recipe_path)
+            self.load_default_recipes(all_items, recipe_path);
         }
     }
+    #[must_use]
     pub fn get_recipe(&self, recipe_name: &String) -> Option<&Recipe> {
         let or = self.object.get_recipe(recipe_name);
         if or.is_none() {
@@ -442,9 +452,9 @@ impl<'a> Logging<'a, RecipeBook> {
         }
         or
     }
-    pub fn load_default_recipes<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display>(&mut self, all_items: &Logging<ItemSearch<IS>>, recipe_path:S){
+    pub fn load_default_recipes<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display>(&mut self, _all_items: &Logging<ItemSearch<IS>>, recipe_path:S){
         let mut recipes_fio = Logging::<FileIO<S>>::new(
-            &self.logger,
+            self.logger,
             recipe_path,
         );
         let mut recipe_list: Vec<Recipe> = match recipes_fio.read::<HashMap<String, Recipe>>() {
@@ -456,10 +466,11 @@ impl<'a> Logging<'a, RecipeBook> {
         // Log any invalid recipes
         let before_len = recipe_list.len();
         recipe_list.retain(|r|
-            if !r.isvalid() {
+            if r.isvalid() { true }
+            else { 
                 log_warning!(&self.logger, "Skipping recipe: {}", r.name);
                 false
-            } else { true }
+            }
         );
         debug!(&self.logger, "Filtered out {} invalid recipes.",before_len - recipe_list.len());
 
