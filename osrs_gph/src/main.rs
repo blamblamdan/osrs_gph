@@ -29,7 +29,7 @@ macro_rules! early_exit {
     };
 }
 
-#[allow(clippy::too_many_lines)]
+// #[allow(clippy::too_many_lines)]
 fn main() {
     let config = convenience::load_config("config.toml"); // Load TOML file into here
 
@@ -87,43 +87,14 @@ fn main() {
         _ => log_panic!(&logger, Level::Error, "Bad choice {}", &choice),
     };
 
-    let mut item_search_s = LogItemSearch::<&str>::new::<HashMap<String, Item>>(
-        &logger,
-        price_data_io,
-        id_to_name,
-        name_to_id,
-        None,
-    );
-
-    let ignore_items: Vec<String> =
-        match Vec::deserialize(config["filepaths"]["recipes"]["ignore_items"].clone()) {
-            Ok(v) => v,
-            Err(e) => log_panic!(
-                &logger,
-                Level::Error,
-                "Failed to parse list of ignored items: {}",
-                e
-            ),
-        };
+    let (mut item_search_s, ignore_items) =
+        create_item_search(&logger, price_data_io, id_to_name, name_to_id, &config);
 
     // Setup ItemSearch
     item_search_s.initalize();
     item_search_s.ignore_items(&ignore_items);
 
-    // Load recipes
-    let recipe_fp: String =
-        match String::deserialize(config["filepaths"]["recipes"]["recipe_data"].clone()) {
-            Ok(fp) => fp,
-            Err(e) => log_panic!(
-                &logger,
-                Level::Error,
-                "Failed to parse recipe filepath: {}",
-                e
-            ),
-        };
-    info!(&logger, "Loading: Recipes from {}", &recipe_fp);
-
-    let mut recipe_book = LogRecipeBook::new(&logger, RecipeBook::default());
+    let (recipe_fp, mut recipe_book) = create_recipe_book(&logger, &config);
     recipe_book.initalize(&item_search_s, &recipe_fp, None::<Vec<Recipe>>);
 
     // TODO compute weights, price_calc and display
@@ -155,6 +126,50 @@ fn main() {
             Err(e) => log_panic!(&logger, Level::Error, "Failed to parse weights: {}", e),
         };
     dbg!(&weights);
+}
+
+fn create_recipe_book<'l>(logger: &'l Logger, config: &toml::map::Map<String, Value>) -> (String, LogRecipeBook<'l>) {
+    // Load recipes
+    let recipe_fp: String =
+    if let Ok(fp) = String::deserialize(config["filepaths"]["recipes"]["recipe_data"].clone()) {
+        fp 
+    } else { log_panic!(
+        &logger,
+        Level::Error,
+        "Failed to parse recipe filepath"
+    ) };
+    info!(&logger, "Loading: Recipes from {}", &recipe_fp);
+
+    let recipe_book = LogRecipeBook::new(logger, RecipeBook::default());
+    (recipe_fp, recipe_book)
+}
+
+fn create_item_search<'l: 'io, 'io: 'l + 'fp, 'fp>(
+    logger: &'l Logger,
+    price_data_io: LogFileIO<'io, &'fp str>,
+    id_to_name: LogFileIO<'io, &'fp str>,
+    name_to_id: LogFileIO<'io, &'fp str>,
+    config: &toml::map::Map<String, Value>,
+) -> (LogItemSearch<'l, 'io, &'fp str>, Vec<String>) {
+    let item_search_s = LogItemSearch::<&str>::new::<HashMap<String, Item>>(
+        logger,
+        price_data_io,
+        id_to_name,
+        name_to_id,
+        None,
+    );
+
+    let ignore_items: Vec<String> =
+        match Vec::deserialize(config["filepaths"]["recipes"]["ignore_items"].clone()) {
+            Ok(v) => v,
+            Err(e) => log_panic!(
+                &logger,
+                Level::Error,
+                "Failed to parse list of ignored items: {}",
+                e
+            ),
+        };
+    (item_search_s, ignore_items)
 }
 
 fn create_fio<'l, 'd>(
