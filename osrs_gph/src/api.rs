@@ -1,8 +1,8 @@
-use reqwest::header::HeaderMap;
 use std::collections::HashMap;
-use toml::Table;
 
+use reqwest::header::HeaderMap;
 use serde::Deserialize;
+use toml::Table;
 
 #[derive(Debug, Default, Clone)]
 pub struct APIHeaders {

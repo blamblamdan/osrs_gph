@@ -1,23 +1,26 @@
+use osrs_gph::{
+    api::{APIHeaders, FromTable, API},
+    convenience::{self, Input},
+    data_types::PriceDataType,
+    errors::Custom,
+    item_search::{Item, Recipe, RecipeBook},
+    log_panic,
+    logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook, Logging},
+    pareto_sort::compute_weights,
+};
+
 use core::fmt;
-use std::collections::HashMap;
-use std::io::{BufReader, Read};
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    io::{BufReader, Read},
+    path::Path,
+};
 
 use reqwest::blocking::Response;
 use serde::Deserialize;
 use slog::{debug, info, Level, Logger};
 use sloggers::types::Format;
 use toml::{Table, Value};
-
-use osrs_gph::log_panic;
-use osrs_gph::api::{APIHeaders, FromTable, API};
-use osrs_gph::convenience::{self, Input};
-use osrs_gph::data_types::PriceDataType;
-use osrs_gph::errors::Custom;
-use osrs_gph::file_io::FileIO;
-use osrs_gph::item_search::{Item, ItemSearch, Recipe, RecipeBook};
-use osrs_gph::logging::{LogConfig, Logging};
-use osrs_gph::pareto_sort::compute_weights;
 
 #[allow(unused_macros)]
 macro_rules! early_exit {
@@ -29,16 +32,15 @@ macro_rules! early_exit {
 #[allow(clippy::too_many_lines)]
 fn main() {
     let config = convenience::load_config("config.toml"); // Load TOML file into here
+
     let logger_path: &str = config["filepaths"]["logging"]["log_file"]
         .as_str()
         .unwrap_or("runtime.log"); // Something to do with config
-                                   // Logger config
     let logger_config = LogConfig::new(logger_path, Level::Debug, Format::Compact);
-
     let logger = logger_config.create_logger();
     debug!(&logger, "Initialised logger.");
 
-    // // Load all items into memory
+    // Load all items into memory
     let data_fps: &Table = config["filepaths"]["data"].as_table().unwrap_or_else(|| {
         log_panic!(
             &logger,
@@ -47,34 +49,7 @@ fn main() {
         )
     });
 
-    // let price_data_io = Logging<FileIO>::new(data_fps["price_data"].to_string());
-    let mut price_data_io = Logging::<FileIO<&str>>::with_options(
-        &logger,
-        data_fps["price_data"]
-            .as_str()
-            .unwrap_or("api_data/price_data.json"),
-        [true, true, true],
-    );
-    // price_data_io.set_buf_size(8192usize); // DEBUG
-
-    let name_to_id = Logging::<FileIO<&str>>::new(
-        &logger,
-        data_fps["name_to_id"]
-            .as_str()
-            .unwrap_or("lookup_data/name_to_id.json"),
-    );
-
-    let id_to_name = Logging::<FileIO<&str>>::new(
-        &logger,
-        data_fps["id_to_name"]
-            .as_str()
-            .unwrap_or("lookup_data/id_to_name.json"),
-    );
-
-    info!(&logger, "Initalised all FileIO structs");
-
-    // `price_data_io` FileIO object is consumed by Logging
-    // **FUTURE** `price_data_io` is entirely consumed by Logging<PriceAPI> object
+    let (mut price_data_io, name_to_id, id_to_name) = create_fio(&logger, data_fps);
 
     // When Logging<ItemSearch> is initialised => Simply load data **from file** to populate object
     let choice = price_data_io
@@ -112,14 +87,13 @@ fn main() {
         _ => log_panic!(&logger, Level::Error, "Bad choice {}", &choice),
     };
 
-    let mut item_search_s = Logging::<ItemSearch<&str>>::new::<HashMap<String, Item>>(
+    let mut item_search_s = LogItemSearch::<&str>::new::<HashMap<String, Item>>(
         &logger,
         price_data_io,
         id_to_name,
         name_to_id,
         None,
     );
-    // TODO: Need to convert PriceDataType (String => PriceDatum) to String=>Item (Using name_to_id)
 
     let ignore_items: Vec<String> =
         match Vec::deserialize(config["filepaths"]["recipes"]["ignore_items"].clone()) {
@@ -148,7 +122,8 @@ fn main() {
             ),
         };
     info!(&logger, "Loading: Recipes from {}", &recipe_fp);
-    let mut recipe_book = Logging::<RecipeBook>::new(&logger, RecipeBook::default());
+
+    let mut recipe_book = LogRecipeBook::new(&logger, RecipeBook::default());
     recipe_book.initalize(&item_search_s, &recipe_fp, None::<Vec<Recipe>>);
 
     // TODO compute weights, price_calc and display
@@ -182,7 +157,41 @@ fn main() {
     dbg!(&weights);
 }
 
-fn api_request(log_api: &Logging<'_, API<String>>) -> PriceDataType {
+fn create_fio<'l, 'd>(
+    logger: &'l Logger,
+    data_fps: &'d toml::map::Map<String, Value>,
+) -> (
+    LogFileIO<'l, &'d str>,
+    LogFileIO<'l, &'d str>,
+    LogFileIO<'l, &'d str>,
+) {
+    let price_data_io = LogFileIO::<&str>::with_options(
+        logger,
+        data_fps["price_data"]
+            .as_str()
+            .unwrap_or("api_data/price_data.json"),
+        [true, true, true],
+    );
+
+    let name_to_id = LogFileIO::<&str>::new(
+        logger,
+        data_fps["name_to_id"]
+            .as_str()
+            .unwrap_or("lookup_data/name_to_id.json"),
+    );
+
+    let id_to_name = LogFileIO::<&str>::new(
+        logger,
+        data_fps["id_to_name"]
+            .as_str()
+            .unwrap_or("lookup_data/id_to_name.json"),
+    );
+
+    info!(&logger, "Initalised all FileIO structs");
+    (price_data_io, name_to_id, id_to_name)
+}
+
+fn api_request(log_api: &LogAPI<String>) -> PriceDataType {
     let callback = |mut r: Response| -> Result<PriceDataType, Custom> {
         let buffer = BufReader::new(r.by_ref()); // 400KB (So far the responses are 395KB 2024-02-02)
         match serde_json::de::from_reader(buffer) {
@@ -200,7 +209,7 @@ fn api_request(log_api: &Logging<'_, API<String>>) -> PriceDataType {
 }
 
 fn write_api_data<S: AsRef<Path> + fmt::Display>(
-    price_data_io: &mut Logging<'_, FileIO<S>>,
+    price_data_io: &mut LogFileIO<S>,
     api_data: &PriceDataType,
 ) -> Result<(), osrs_gph::errors::Custom> {
     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
@@ -215,7 +224,7 @@ fn setup_api_headers(logger: &Logger, headers: &Value) -> APIHeaders {
     }
 }
 
-fn setup_api<'a>(logger: &'a Logger, api_settings: &Table) -> Logging<'a, API<String>> {
+fn setup_api<'a>(logger: &'a Logger, api_settings: &Table) -> LogAPI<'a, String> {
     // API Headers from config
     let headers = setup_api_headers(logger, &api_settings["auth_headers"]);
 

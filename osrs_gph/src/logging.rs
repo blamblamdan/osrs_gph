@@ -1,40 +1,40 @@
-use reqwest::blocking::Response;
+use crate::{
+    api::{APIHeaders, API},
+    data_types::PriceDataType,
+    errors::Custom,
+    file_io::FileIO,
+    item_search::{Item, ItemSearch, Recipe, RecipeBook},
+};
 
-use slog::{debug, info, warn};
-use slog::{error, Logger};
+use std::{
+    any::Any,
+    collections::HashMap,
+    fmt::{self, Debug, Display},
+    fs::{File, Metadata},
+    io::{self, BufReader, BufWriter, Seek},
+    path::Path,
+    time::Instant,
+};
 
-use slog::Level;
-use sloggers::types::{Format, Severity};
-use sloggers::Build;
-
-use sloggers::file::FileLoggerBuilder;
-
-use std::collections::HashMap;
-use std::fs::File;
-
-use std::fmt::{self, Debug, Display};
-use std::path::Path;
-
-use crate::api::APIHeaders;
-use crate::data_types::PriceDataType;
-use std::any::Any;
-use std::fs::Metadata;
-use std::io;
-use std::io::Seek;
-// use super::item_search::{Item, ItemSearch};
-
-use super::api::API;
-use super::file_io::FileIO;
-use super::item_search::{Item, ItemSearch, Recipe, RecipeBook};
-use reqwest::{blocking, header::HeaderMap, IntoUrl};
-
-use std::io::{BufReader, BufWriter};
+use reqwest::{
+    blocking::{self, Response},
+    header::HeaderMap,
+};
 
 use serde::{Deserialize, Serialize};
 
-use std::time::Instant;
+use slog::{debug, error, info, warn, Level, Logger};
 
-use super::errors::Custom;
+use sloggers::{
+    file::FileLoggerBuilder,
+    types::{Format, Severity},
+    Build,
+};
+
+pub type LogFileIO<'l, S> = Logging<'l, FileIO<S>>;
+pub type LogAPI<'l, S> = Logging<'l, API<S>>;
+pub type LogItemSearch<'l, 'io, S> = Logging<'l, ItemSearch<'io, S>>;
+pub type LogRecipeBook<'l> = Logging<'l, RecipeBook>;
 
 /// Derived from `info!` from slog.
 /// Logs message then panics.
@@ -118,10 +118,10 @@ impl<S: AsRef<Path>> LogConfig<S> {
     }
 }
 
-impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
+impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
     /// See [`Self::with_options`] for specifying custom options.
     /// options: (Read: true, Write: false, Create: false)
-    pub fn new(logger: &'a Logger, filename: S) -> Logging<'a, FileIO<S>> {
+    pub fn new(logger: &'l Logger, filename: S) -> Self {
         Self::with_options(logger, filename, [true, false, false])
     }
 
@@ -132,10 +132,10 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
     /// Creates File object which can be handled.
     /// options: (Read, Write, Create)
     pub fn with_options<O: Into<Option<[bool; 3]>>>(
-        logger: &'a Logger,
+        logger: &'l Logger,
         filename: S,
         options: O,
-    ) -> Logging<'a, FileIO<S>> {
+    ) -> LogFileIO<'l, S> {
         // Treating `create` as overwrite existing as well.
         let [read, write, create] = options
             .into()
@@ -290,9 +290,8 @@ impl<'a, S: AsRef<Path> + fmt::Display> Logging<'a, FileIO<S>> {
     }
 }
 
-// Something's wrong...
-impl<'a, S: AsRef<str> + IntoUrl + Clone + Debug + Display> Logging<'a, API<S>> {
-    pub fn new(logger: &'a Logger, object: API<S>) -> Self {
+impl<'l, S: AsRef<str> + Display> LogAPI<'l, S> {
+    pub fn new(logger: &'l Logger, object: API<S>) -> Self {
         Self { logger, object }
     }
     /// Makes API request and returns the JSON response
@@ -318,7 +317,7 @@ impl<'a, S: AsRef<str> + IntoUrl + Clone + Debug + Display> Logging<'a, API<S>> 
             Err(e) => log_panic!(&self.logger, Level::Critical, "Header_map error: {}", e),
         };
 
-        let u = self.object.api_url.clone().to_string() + endpoint.as_ref();
+        let u = self.object.api_url.to_string() + endpoint.as_ref();
 
         let client = blocking::Client::new();
         let res_build = client.get(u).headers(header_map);
@@ -340,20 +339,19 @@ impl<'a, S: AsRef<str> + IntoUrl + Clone + Debug + Display> Logging<'a, API<S>> 
     }
 }
 
-impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path> + std::fmt::Display>
-    Logging<'a, ItemSearch<'ba, 'bb, 'bc, S>>
-{
+// 'a (Logger) outlives 'b (Object)
+impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S> {
     pub fn new<H: Into<HashMap<String, Item>>>(
-        logger: &'a Logger,
-        price_data_handler: Logging<'ba, FileIO<S>>,
-        id_to_name_handler: Logging<'bb, FileIO<S>>,
-        name_to_id_handler: Logging<'bc, FileIO<S>>,
+        logger: &'l Logger,
+        price_data_handler: LogFileIO<'l, S>,
+        id_to_name_handler: LogFileIO<'l, S>,
+        name_to_id_handler: LogFileIO<'l, S>,
         items: Option<H>,
     ) -> Self {
         match items {
             Some(il) => Self {
                 logger,
-                object: ItemSearch::<'ba, 'bb, 'bc, S>::new(
+                object: ItemSearch::<'io, S>::new(
                     price_data_handler,
                     id_to_name_handler,
                     name_to_id_handler,
@@ -362,7 +360,7 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path> + std::fmt::Display>
             },
             None => Self {
                 logger,
-                object: ItemSearch::<'ba, 'bb, 'bc, S>::new(
+                object: ItemSearch::<'io, S>::new(
                     price_data_handler,
                     id_to_name_handler,
                     name_to_id_handler,
@@ -464,9 +462,9 @@ impl<'a, 'ba, 'bb, 'bc, S: AsRef<Path> + std::fmt::Display>
     }
 }
 
-impl<'a> Logging<'a, RecipeBook> {
+impl<'l> LogRecipeBook<'l> {
     #[must_use]
-    pub fn new(logger: &'a Logger, object: RecipeBook) -> Self {
+    pub fn new(logger: &'l Logger, object: RecipeBook) -> Self {
         Self { logger, object }
     }
     pub fn initalize<IS: AsRef<Path>, S: AsRef<Path> + fmt::Display, R: Into<Recipe>>(

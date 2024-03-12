@@ -1,12 +1,13 @@
-use std::fmt::Display;
-use std::io::Write;
-use std::path::Path;
-use toml::Table;
+use crate::log_panic;
+
+use std::{
+    fmt::Display,
+    io::{prelude::BufRead, Write},
+    path::Path,
+};
 
 use slog::{debug, Level, Logger};
-use std::io::prelude::BufRead;
-
-use crate::log_panic;
+use toml::Table;
 
 #[must_use]
 #[allow(clippy::cast_possible_truncation)]

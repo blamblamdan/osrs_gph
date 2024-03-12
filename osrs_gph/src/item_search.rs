@@ -1,15 +1,8 @@
-use std::collections::HashMap;
+use super::{data_types::PriceDatum, file_io::FileIO, logging::Logging};
 
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::{collections::HashMap, fmt::Debug, hash::Hash, path::Path};
 
-use super::file_io::FileIO;
-use super::logging::Logging;
-use serde::de::Visitor;
-use serde::Deserialize;
-
-use super::data_types::PriceDatum;
-use std::path::Path;
+use serde::{de::Visitor, Deserialize};
 
 #[derive(Debug, Deserialize)]
 pub struct Item {
@@ -31,11 +24,11 @@ impl Hash for Item {
     }
 }
 
-pub struct ItemSearch<'a, 'b, 'c, S: AsRef<Path>> {
+pub struct ItemSearch<'a, S: AsRef<Path>> {
     // Curse of logging wrapper...
     pub price_data_handler: Logging<'a, FileIO<S>>,
-    pub id_to_name_handler: Logging<'b, FileIO<S>>,
-    pub name_to_id_handler: Logging<'c, FileIO<S>>,
+    pub id_to_name_handler: Logging<'a, FileIO<S>>,
+    pub name_to_id_handler: Logging<'a, FileIO<S>>,
     pub items: HashMap<String, Item>,
     pub name_to_id: HashMap<String, String>,
     pub id_to_name: HashMap<String, String>,
@@ -117,11 +110,11 @@ pub struct RecipeBook {
     pub recipes: HashMap<String, Recipe>,
 }
 
-impl<'a, 'b, 'c, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a, 'b, 'c, S> {
+impl<'a, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a, S> {
     pub fn new(
         price_data_handler: Logging<'a, FileIO<S>>,
-        id_to_name_handler: Logging<'b, FileIO<S>>,
-        name_to_id_handler: Logging<'c, FileIO<S>>,
+        id_to_name_handler: Logging<'a, FileIO<S>>,
+        name_to_id_handler: Logging<'a, FileIO<S>>,
         items: HashMap<String, Item>,
     ) -> Self {
         // Using Item Name(String)=>Item(Object)

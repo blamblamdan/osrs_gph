@@ -1,23 +1,19 @@
-use std::{collections::HashMap, path::Path};
-
 use crate::{
     convenience::{f_round, floor},
     item_search::{Item, ItemSearch, Recipe, RecipeTime},
     logging::Logging,
 };
 
-pub struct PriceHandle<'a, 'b, 'c, S: AsRef<Path>> {
-    pub all_items: Logging<'a, ItemSearch<'a, 'b, 'c, S>>,
+use std::{collections::HashMap, path::Path};
+
+pub struct PriceHandle<'a, S: AsRef<Path>> {
+    pub all_items: Logging<'a, ItemSearch<'a, S>>,
     pub coins: i32,
     pub pmargin: f32,
 }
 
-impl<'a, 'b, 'c, S: AsRef<Path>> PriceHandle<'a, 'b, 'c, S> {
-    pub fn new(
-        all_items: Logging<'a, ItemSearch<'a, 'b, 'c, S>>,
-        coins: i32,
-        pmargin: f32,
-    ) -> Self {
+impl<'a, S: AsRef<Path>> PriceHandle<'a, S> {
+    pub fn new(all_items: Logging<'a, ItemSearch<'a, S>>, coins: i32, pmargin: f32) -> Self {
         Self {
             all_items,
             coins,

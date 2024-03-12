@@ -1,8 +1,6 @@
-use serde::de::Visitor;
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
+
+use serde::{de::Visitor, ser::SerializeStruct, Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Clone, Default, Copy)]
 pub struct PriceDatum {
