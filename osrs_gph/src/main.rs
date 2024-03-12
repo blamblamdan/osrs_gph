@@ -5,7 +5,7 @@ use osrs_gph::{
     errors::Custom,
     item_search::{Item, Recipe, RecipeBook},
     log_panic,
-    logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook, Logging},
+    logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook},
     pareto_sort::compute_weights,
 };
 
@@ -52,40 +52,20 @@ fn main() {
     let (mut price_data_io, name_to_id, id_to_name) = create_fio(&logger, data_fps);
 
     // When Logging<ItemSearch> is initialised => Simply load data **from file** to populate object
-    let choice = price_data_io
+    let inp = price_data_io
         .logger
         .input("1. API Refresh Data\n2. Load previous Data\n");
-
+    let choice = inp.trim_end();
     // Load new data from API or pre-existing file data
-    match choice.trim_end() {
-        "1" => {
-            info!(&logger, "Retrieving prices from API.");
-            // Setup the API stuff
-            let api_settings = config["API_settings"].as_table().unwrap_or_else(|| {
-                log_panic!(&logger, Level::Critical, "API settings could not be parsed")
-            });
-            info!(
-                &logger,
-                "Initialising: API settings for {}", &api_settings["url"]
-            );
-
-            let api = setup_api(&logger, api_settings);
-
-            let api_data = api_request(&api);
-
-            match write_api_data(&mut price_data_io, &api_data) {
-                Ok(()) => info!(&price_data_io.logger, "Write success."),
-                Err(e) => log_panic!(
-                    &price_data_io.logger,
-                    Level::Error,
-                    "Failed to write to file: {:?}",
-                    e
-                ),
-            };
-        }
-        "2" => info!(&logger, "Loading previous data instead."),
-        _ => log_panic!(&logger, Level::Error, "Bad choice {}", &choice),
-    };
+    
+    if choice == "1" {
+        info!(&logger, "Retrieving prices from API.");
+        perform_api_operations(&config, &logger, &mut price_data_io);
+    } else if choice == "2" {
+        info!(&logger, "Loading previous data instead.");
+    } else {
+        log_panic!(&logger, Level::Error, "Bad choice {}", &choice);
+    }
 
     let (mut item_search_s, ignore_items) =
         create_item_search(&logger, price_data_io, id_to_name, name_to_id, &config);
@@ -126,6 +106,33 @@ fn main() {
             Err(e) => log_panic!(&logger, Level::Error, "Failed to parse weights: {}", e),
         };
     dbg!(&weights);
+}
+
+fn perform_api_operations(config: &Table, logger: &Logger, price_data_io: &mut LogFileIO<&str>) {
+    // Setup the API stuff
+    let api = if let Some(api_settings) = config["API_settings"].as_table() {
+        info!(
+            &logger,
+            "Initialising: API settings for {}", &api_settings["url"]
+        );
+
+        setup_api(logger, api_settings)
+    } else {
+        log_panic!(&logger, Level::Critical, "API settings could not be parsed")
+    };
+
+    let api_data = api_request(&api);
+
+    if let Err(e) = write_api_data(price_data_io, &api_data) {
+        log_panic!(
+            &price_data_io.logger,
+            Level::Error,
+            "Failed to write to file: {:?}",
+            e
+        );
+    } else {
+        info!(&price_data_io.logger, "Write success.");
+    }
 }
 
 fn create_recipe_book<'l>(logger: &'l Logger, config: &toml::map::Map<String, Value>) -> (String, LogRecipeBook<'l>) {
@@ -209,10 +216,7 @@ fn create_fio<'l, 'd>(
 fn api_request(log_api: &LogAPI<String>) -> PriceDataType {
     let callback = |mut r: Response| -> Result<PriceDataType, Custom> {
         let buffer = BufReader::new(r.by_ref()); // 400KB (So far the responses are 395KB 2024-02-02)
-        match serde_json::de::from_reader(buffer) {
-            Ok(o) => Ok(o),
-            Err(e) => Err(e.into()),
-        }
+        Ok(serde_json::de::from_reader::<_, PriceDataType>(buffer)?)
     };
     match log_api.request("/latest".to_string(), callback, None) {
         Ok(d) => {
@@ -243,8 +247,9 @@ fn setup_api<'a>(logger: &'a Logger, api_settings: &Table) -> LogAPI<'a, String>
     // API Headers from config
     let headers = setup_api_headers(logger, &api_settings["auth_headers"]);
 
-    let api_url = String::deserialize(api_settings["url"].clone())
-        .unwrap_or_else(|_| log_panic!(logger, Level::Critical, "API url could not be parsed"));
-
-    Logging::<API<String>>::new(logger, API::new(api_url, headers))
+    if let Ok(api_url) = String::deserialize(api_settings["url"].clone()) {
+        LogAPI::new(logger, API::new(api_url, headers))
+    } else {
+        log_panic!(logger, Level::Critical, "API url could not be parsed")
+    }
 }

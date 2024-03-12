@@ -1,4 +1,6 @@
-use std::path::Path;
+use std::io;
+use std::fs::Metadata;
+use std::{path::Path, fs::File};
 
 #[derive(Debug)]
 pub struct FileIO<S: AsRef<Path>> {
@@ -21,5 +23,18 @@ impl<S: AsRef<Path>> FileIO<S> {
 
     pub fn get_buf_size(&self) -> usize {
         self.buf_size
+    }
+
+    pub fn set_buf_size<N: Into<usize>>(&mut self, buf_size: N) {
+        self.with_buf_size(buf_size);
+    }
+
+    /// # Errors
+    /// See [`std::fs::File::metadata`].
+    pub fn metadata(&self, f: &File) -> io::Result<Metadata> {
+        f.metadata()
+    }
+    pub fn exists(&self, f: &File) -> bool {
+        self.metadata(f).is_ok()
     }
 }

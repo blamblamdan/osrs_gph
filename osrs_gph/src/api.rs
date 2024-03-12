@@ -110,4 +110,13 @@ impl<S: AsRef<str>> API<S> {
             headers: headers.into(),
         }
     }
+
+    pub fn add_headers(&self, headers: Option<APIHeaders>)  -> APIHeaders{
+        let mut newheaders: APIHeaders = self.headers.clone();
+        if let Some(heads) = headers {
+            // Replace with new entries
+            newheaders.extend(heads);
+        };
+        newheaders
+    }
 }

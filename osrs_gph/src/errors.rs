@@ -1,3 +1,5 @@
+pub type CustomResult<T> = Result<T, Custom>;
+
 #[derive(Debug)]
 pub enum Custom {
     IoError(std::io::Error),       // FileIO errors

@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 
 use prettytable::{Row, Table};
 
-// type RowFormat = (String, i32, i32, f32, i32);
 type Weights = Vec<f32>;
 
 fn lin_scalarization(x: &Row, weights: &Weights) -> f32 {
@@ -46,14 +45,14 @@ fn ls_compare(x: &Row, y: &Row, weights: &Weights) -> Ordering {
     // Want x_val > y_val (Opposite of x_val < y_val)
     x_val.total_cmp(&y_val)
 }
-
-fn optimal_sort(table: &Table, weights: &Weights, reverse: bool) -> Table {
+#[must_use]
+pub fn optimal_sort(table: &Table, weights: &Weights, reverse: bool) -> Table {
     let _v_weights = compute_weights(weights); // Normalize
                                                // Return sorted based on ls_compare function
     let mut row_list = table.into_iter().collect::<Vec<&Row>>();
     row_list.sort_by(|a, b| ls_compare(a, b, weights));
     if reverse {
-        row_list.reverse()
+        row_list.reverse();
     };
     let mut output_table = Table::new();
     for row in row_list {

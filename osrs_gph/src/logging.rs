@@ -1,7 +1,7 @@
 use crate::{
     api::{APIHeaders, API},
     data_types::PriceDataType,
-    errors::Custom,
+    errors::{Custom, CustomResult},
     file_io::FileIO,
     item_search::{Item, ItemSearch, Recipe, RecipeBook},
 };
@@ -10,7 +10,7 @@ use std::{
     any::Any,
     collections::HashMap,
     fmt::{self, Debug, Display},
-    fs::{File, Metadata},
+    fs::File,
     io::{self, BufReader, BufWriter, Seek},
     path::Path,
     time::Instant,
@@ -125,10 +125,6 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         Self::with_options(logger, filename, [true, false, false])
     }
 
-    pub fn set_buf_size<N: Into<usize>>(&mut self, buf_size: N) {
-        self.object.with_buf_size(buf_size);
-    }
-
     /// Creates File object which can be handled.
     /// options: (Read, Write, Create)
     pub fn with_options<O: Into<Option<[bool; 3]>>>(
@@ -154,7 +150,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         }
     }
     // Is this the best way?
-    pub fn file(&mut self) -> File {
+    fn file(&mut self) -> File {
         let [read, write, create] = self.object.options;
         let filename = &self.object.filename;
         match std::fs::OpenOptions::new()
@@ -172,16 +168,15 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
     }
 
     /// # Errors
-    /// See [`std::fs::File::metadata`].
-    pub fn metadata(&self, f: &File) -> io::Result<Metadata> {
-        f.metadata()
-    }
-    pub fn exists(&self, f: &File) -> bool {
-        self.metadata(f).is_ok()
-    }
-
-    fn file_exists(f: &File) -> bool {
-        f.metadata().is_ok()
+    /// Errors if `Self::rewind` fails.
+    pub fn open_file<E: fmt::Display>(&mut self, emsg: E) -> CustomResult<File> {
+        let mut file = self.file(); // Open once
+        if !self.has_data(&file) {
+            warn!(&self.logger, "{emsg}");
+            return Err(io::ErrorKind::NotFound.into());
+        };
+        self.rewind(&mut file);
+        Ok(file)
     }
 
     fn rewind(&self, file: &mut File) {
@@ -212,7 +207,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
     }
 
     pub fn has_data(&self, f: &File) -> bool {
-        if let Ok(m) = self.metadata(f) {
+        if let Ok(m) = self.object.metadata(f) {
             m.len() > 0
         } else {
             log_panic!(
@@ -231,17 +226,9 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         data: &J,
         format: F,
     ) -> Result<(), Custom> {
-        let mut file = self.file(); // Open once
-        if !Self::file_exists(&file) {
-            warn!(
-                &self.logger,
-                "Attempted to write to non-existent file {}", &self.object.filename
-            );
-
-            return Err(io::ErrorKind::NotFound.into());
-        };
-        // Note: Opening with `create` should clear file contents
-        self.rewind(&mut file);
+        let file = self.open_file(
+            format!("Attempted to write to non-existent file {}", &self.object.filename)
+        )?;
         info!(&self.logger, "Overwriting file {}", &self.object.filename);
 
         let buffer = BufWriter::with_capacity(self.object.get_buf_size(), file);
@@ -249,28 +236,18 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
 
         // DEBUG
         let now = Instant::now();
-        match data.serialize(&mut serialiser) {
-            Ok(()) => {
-                println!("Wrote file in {:?}", now.elapsed()); // DEBUG
-                Ok(())
-            }
-            Err(e) => Err(e.into()),
-        }
+        data.serialize(&mut serialiser)?;
+        println!("Wrote file in {:?}", now.elapsed()); // DEBUG
+
+        Ok(())
     }
 
     /// # Errors
     /// Errors when the file does not exist or deserialization fails.
     pub fn read<'de, T: Deserialize<'de>>(&mut self) -> Result<T, Custom> {
-        let mut file = self.file(); // Open once
-        if !self.has_data(&file) {
-            warn!(
-                &self.logger,
-                "Attempted to read non-existent file {}", &self.object.filename
-            );
-            // return Err(io::ErrorKind::NotFound.into());
-            return Err(Custom::IoError(io::ErrorKind::NotFound.into()));
-        };
-        self.rewind(&mut file);
+        let file = self.open_file(
+            format!("Attempted to read non-existent file {}", &self.object.filename)
+        )?;
         info!(&self.logger, "Reading file {}", &self.object.filename);
 
         // TODO: Is file.read_to_string(...); faster?
@@ -279,14 +256,10 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
 
         // DEBUG
         let now = Instant::now();
-
-        match T::deserialize(&mut deserialiser) {
-            Ok(t) => {
-                println!("Read file in {:?}", now.elapsed()); // DEBUG
-                Ok(t)
-            }
-            Err(e) => Err(e.into()),
-        }
+        let t = T::deserialize(&mut deserialiser)?;
+        println!("Read file in {:?}", now.elapsed()); // DEBUG
+        
+        Ok(t)
     }
 }
 
@@ -299,20 +272,10 @@ impl<'l, S: AsRef<str> + Display> LogAPI<'l, S> {
         &self,
         endpoint: E,
         callback: F,
-        headers: Option<&APIHeaders>,
+        headers: Option<APIHeaders>,
     ) -> R {
         // Merge headers prioritising new
-        let newheaders: APIHeaders = match headers {
-            Some(heads) => {
-                let mut h = self.object.headers.clone();
-                // Replace with new entries
-                h.extend(heads.clone());
-                h
-            }
-            None => self.object.headers.clone(),
-        };
-
-        let header_map: HeaderMap = match newheaders.try_into() {
+        let header_map: HeaderMap = match self.object.add_headers(headers).try_into() {
             Ok(h) => h,
             Err(e) => log_panic!(&self.logger, Level::Critical, "Header_map error: {}", e),
         };
@@ -348,25 +311,19 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
         name_to_id_handler: LogFileIO<'l, S>,
         items: Option<H>,
     ) -> Self {
-        match items {
-            Some(il) => Self {
-                logger,
-                object: ItemSearch::<'io, S>::new(
-                    price_data_handler,
-                    id_to_name_handler,
-                    name_to_id_handler,
-                    il.into(),
-                ),
-            },
-            None => Self {
-                logger,
-                object: ItemSearch::<'io, S>::new(
-                    price_data_handler,
-                    id_to_name_handler,
-                    name_to_id_handler,
-                    HashMap::new(),
-                ),
-            },
+        let h = if let Some(il) = items {
+            il.into()
+        } else {
+            HashMap::new()
+        };
+        Self {
+            logger,
+            object: ItemSearch::<'io, S>::new(
+                price_data_handler,
+                id_to_name_handler,
+                name_to_id_handler,
+                h,
+            )
         }
     }
 
@@ -521,6 +478,5 @@ impl<'l> LogRecipeBook<'l> {
         self.object.add_from_list(recipe_list);
         self.object.remove_recipe("Template");
         debug!(&self.logger, "Loaded {} recipes.", self.object.len());
-        // dbg!(&self.object.recipes);
     }
 }
