@@ -5,8 +5,8 @@ use osrs_gph::{
     errors::Custom,
     item_search::{Item, Recipe, RecipeBook},
     log_panic,
-    logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook},
-    pareto_sort::compute_weights,
+    logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook, LogPriceHandle},
+    pareto_sort::compute_weights, price_handle::PriceHandle,
 };
 
 use core::fmt;
@@ -78,7 +78,7 @@ fn main() {
     recipe_book.initalize(&item_search_s, &recipe_fp, None::<Vec<Recipe>>);
 
     // TODO compute weights, price_calc and display
-    let _coins = match i32::deserialize(config["profit_settings"]["money"]["coins"].clone()) {
+    let coins = match i32::deserialize(config["profit_settings"]["money"]["coins"].clone()) {
         Ok(c) => c,
         Err(e) => log_panic!(
             &logger,
@@ -87,7 +87,7 @@ fn main() {
             e
         ),
     };
-    let _pmargin =
+    let pmargin =
         match f32::deserialize(config["profit_settings"]["money"]["percent_margin"].clone()) {
             Ok(c) => c,
             Err(e) => log_panic!(
@@ -105,7 +105,12 @@ fn main() {
             }
             Err(e) => log_panic!(&logger, Level::Error, "Failed to parse weights: {}", e),
         };
-    dbg!(&weights);
+
+    let price_hand = LogPriceHandle::new(&logger, 
+        PriceHandle::new(item_search_s, recipe_book, coins, pmargin)
+    );
+    let row = price_hand.recipe_price_overview(&"Humidify Clay".to_string());
+    dbg!(&row);
 }
 
 fn perform_api_operations(config: &Table, logger: &Logger, price_data_io: &mut LogFileIO<&str>) {

@@ -3,7 +3,7 @@ use crate::{
     data_types::PriceDataType,
     errors::{Custom, CustomResult},
     file_io::FileIO,
-    item_search::{Item, ItemSearch, Recipe, RecipeBook},
+    item_search::{Item, ItemSearch, Recipe, RecipeBook}, price_handle::PriceHandle,
 };
 
 use std::{
@@ -16,6 +16,7 @@ use std::{
     time::Instant,
 };
 
+use prettytable::{Table, Row, Cell};
 use reqwest::{
     blocking::{self, Response},
     header::HeaderMap,
@@ -35,6 +36,7 @@ pub type LogFileIO<'l, S> = Logging<'l, FileIO<S>>;
 pub type LogAPI<'l, S> = Logging<'l, API<S>>;
 pub type LogItemSearch<'l, 'io, S> = Logging<'l, ItemSearch<'io, S>>;
 pub type LogRecipeBook<'l> = Logging<'l, RecipeBook>;
+pub type LogPriceHandle<'l, 'il, S> = Logging<'l, PriceHandle<'il, S>>;
 
 /// Derived from `info!` from slog.
 /// Logs message then panics.
@@ -417,6 +419,17 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
             self.object.items.insert(item_name, item);
         }
     }
+
+    pub fn item_by_name(&self, item_name: &String) -> Option<&Item> {
+        let item = self.object.item_by_name(item_name);
+        if item.is_none() {
+            warn!(&self.logger, "Item `{item_name}` not found.");
+        }
+        item
+    }  
+    pub fn item_by_id(&self, item_id: &String) -> Option<&Item> {
+        self.object.item_by_id(item_id)
+    }
 }
 
 impl<'l> LogRecipeBook<'l> {
@@ -478,5 +491,49 @@ impl<'l> LogRecipeBook<'l> {
         self.object.add_from_list(recipe_list);
         self.object.remove_recipe("Template");
         debug!(&self.logger, "Loaded {} recipes.", self.object.len());
+    }
+}
+
+
+impl<'l: 'il, 'il, S: AsRef<Path> + Display> LogPriceHandle<'l, 'il, S> {
+    pub fn new(logger: &'l Logger, object: PriceHandle<'il, S>) -> Self {
+        Self { logger, object }
+    }
+
+    pub fn recipe_price_overview(&self, recipe_name: &String) -> Option<Row> {
+        let recipe = self.object.recipe_list.get_recipe(recipe_name)?;
+        self.recipe_price_overview_from_recipe(recipe)
+    }
+    pub fn recipe_price_overview_from_recipe(&self, recipe: &Recipe) -> Option<Row> {
+        // Need to parse item strings into Item objects
+        let input_items = self.object.parse_item_list(&recipe.inputs)?;
+        let output_items = self.object.parse_item_list(&recipe.outputs)?;
+
+        let input_details = PriceHandle::<S>::item_list_prices_unchecked(
+            input_items, true
+        );
+        let output_details = PriceHandle::<S>::item_list_prices_unchecked(
+            output_items, false
+        ); 
+
+        let cost = PriceHandle::<S>::total_price(
+            &input_details.into_values().collect::<Vec<_>>()
+        );
+        let revenue = PriceHandle::<S>::apply_tax(
+            PriceHandle::<S>::total_price(
+                &output_details.into_values().collect::<Vec<_>>()
+            )
+        );
+        let profit = revenue-cost;
+        let time = &recipe.time;
+
+        Some(Row::new(
+            vec![
+                Cell::new(cost.to_string().as_str()), 
+                Cell::new(revenue.to_string().as_str()), 
+                Cell::new(profit.to_string().as_str()), 
+                Cell::new(time.to_string().as_str())
+            ]
+        ))
     }
 }

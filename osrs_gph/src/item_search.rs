@@ -1,10 +1,10 @@
-use super::{data_types::PriceDatum, file_io::FileIO, logging::Logging};
+use crate::{logging::LogFileIO, data_types::PriceDatum};
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash, path::Path};
 
 use serde::{de::Visitor, Deserialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Item {
     pub name: String,    // TODO: Consider switching to &str if not needed.
     pub item_id: String, // i32
@@ -26,9 +26,9 @@ impl Hash for Item {
 
 pub struct ItemSearch<'a, S: AsRef<Path>> {
     // Curse of logging wrapper...
-    pub price_data_handler: Logging<'a, FileIO<S>>,
-    pub id_to_name_handler: Logging<'a, FileIO<S>>,
-    pub name_to_id_handler: Logging<'a, FileIO<S>>,
+    pub price_data_handler: LogFileIO<'a, S>,
+    pub id_to_name_handler: LogFileIO<'a, S>,
+    pub name_to_id_handler: LogFileIO<'a, S>,
     pub items: HashMap<String, Item>,
     pub name_to_id: HashMap<String, String>,
     pub id_to_name: HashMap<String, String>,
@@ -112,19 +112,34 @@ pub struct RecipeBook {
 
 impl<'a, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a, S> {
     pub fn new(
-        price_data_handler: Logging<'a, FileIO<S>>,
-        id_to_name_handler: Logging<'a, FileIO<S>>,
-        name_to_id_handler: Logging<'a, FileIO<S>>,
+        price_data_handler: LogFileIO<'a, S>,
+        id_to_name_handler: LogFileIO<'a, S>,
+        name_to_id_handler: LogFileIO<'a, S>,
         items: HashMap<String, Item>,
     ) -> Self {
-        // Using Item Name(String)=>Item(Object)
         Self {
             price_data_handler,
             id_to_name_handler,
             name_to_id_handler,
-            items,
+            items, // Using Item Name(String)=>Item(Object)
             name_to_id: HashMap::new(),
             id_to_name: HashMap::new(),
+        }
+    }
+    pub fn name_from_id(&self, item_id: &String) -> Option<&String> {
+        self.id_to_name.get(item_id)
+    }
+    pub fn id_from_name(&self, item_name: &String) -> Option<&String> {
+        self.name_to_id.get(item_name)
+    }
+    pub fn item_by_name(&self, item_name: &String) -> Option<&Item> {
+        self.items.get(item_name) 
+    }  
+    pub fn item_by_id(&self, item_id: &String) -> Option<&Item> {
+        if let Some(item_name) = self.name_from_id(item_id) {
+            self.item_by_name(item_name)
+        } else {
+            None
         }
     }
 }
@@ -221,6 +236,15 @@ impl RecipeTime {
     #[must_use]
     pub fn isvalid(&self) -> bool {
         !matches!(self, Self::INVALID)
+    }
+}
+
+impl ToString for RecipeTime {
+    fn to_string(&self) -> String {
+        match self {
+            RecipeTime::Time(t) => format!("{t}"),
+            RecipeTime::INVALID => String::new()
+        }
     }
 }
 

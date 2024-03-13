@@ -1,21 +1,23 @@
 use crate::{
     convenience::{f_round, floor},
-    item_search::{Item, ItemSearch, Recipe, RecipeTime},
-    logging::Logging,
+    item_search::{Item, Recipe, RecipeTime},
+    logging::{LogItemSearch, LogRecipeBook},
 };
 
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, fmt::Display};
 
 pub struct PriceHandle<'a, S: AsRef<Path>> {
-    pub all_items: Logging<'a, ItemSearch<'a, S>>,
+    pub all_items: LogItemSearch<'a, 'a, S>,
+    pub recipe_list: LogRecipeBook<'a>,
     pub coins: i32,
     pub pmargin: f32,
 }
 
-impl<'a, S: AsRef<Path>> PriceHandle<'a, S> {
-    pub fn new(all_items: Logging<'a, ItemSearch<'a, S>>, coins: i32, pmargin: f32) -> Self {
+impl<'a, S: AsRef<Path> + Display> PriceHandle<'a, S> {
+    pub fn new(all_items: LogItemSearch<'a, 'a, S>, recipe_list: LogRecipeBook<'a>, coins: i32, pmargin: f32) -> Self {
         Self {
             all_items,
+            recipe_list,
             coins,
             pmargin,
         }
@@ -33,9 +35,10 @@ impl<'a, S: AsRef<Path>> PriceHandle<'a, S> {
     }
 
     #[must_use]
-    pub fn total_price(price_details: &[(f32, f32)]) -> i32 {
+    #[allow(clippy::cast_precision_loss)]
+    pub fn total_price(price_details: &[(i32, f32)]) -> i32 {
         // total price for each item is price * quantity
-        let total: f32 = price_details.iter().map(|t| t.0 * t.1).sum();
+        let total: f32 = price_details.iter().map(|t| t.0 as f32 * t.1).sum();
         floor(total)
     }
 
@@ -63,6 +66,7 @@ impl<'a, S: AsRef<Path>> PriceHandle<'a, S> {
         (None, None)
     }
 
+    /// (Item, (Price, Quantity))
     pub fn item_list_prices<I: IntoIterator<Item = (Item, f32)>>(
         item_list: I,
         price_type: bool,
@@ -75,4 +79,35 @@ impl<'a, S: AsRef<Path>> PriceHandle<'a, S> {
             })
             .collect()
     }
+
+    /// # Panics
+    /// When item price does not exist.
+    pub fn item_list_prices_unchecked<I: IntoIterator<Item = (Item, f32)>>(
+        item_list: I,
+        price_type: bool,
+    ) -> HashMap<Item, (i32, f32)> {
+        item_list
+            .into_iter()
+            .map(|(i, q)| {
+                let price = i.price(price_type).unwrap();
+                (i, (price, q))
+            })
+            .collect()
+    }
+
+    pub fn parse_item_list(&self, items: &HashMap<String, f32>) -> Option<Vec<(Item, f32)>> {
+        let filtered_items: Vec<_> = items
+            .iter()
+            .filter_map(|(item_name, &quantity)|
+                self.all_items
+                .item_by_name(item_name)
+                .map(|item| (item.clone(), quantity))
+            ).collect();
+        if items.len() == filtered_items.len() {
+            Some(filtered_items)
+        } else {
+            None
+        }
+    }
+
 }
