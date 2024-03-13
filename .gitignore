@@ -2,8 +2,8 @@
 # will have compiled files and executables
 debug/
 target/
-api_data/*
-results/*
+# api_data/*
+# results/*
 *.log*
 *.svg*
 *.txt*
