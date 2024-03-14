@@ -6,12 +6,19 @@ use std::{
     path::Path,
 };
 
+use prettytable::Row;
 use slog::{debug, Level, Logger};
 use toml::Table;
 
+pub const CENTER_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::CENTER;
+pub const LEFT_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::LEFT;
+pub const RIGHT_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::RIGHT;
+
+
+
 #[must_use]
 #[allow(clippy::cast_possible_truncation)]
-pub fn floor(x: f32) -> i32 {
+pub fn floor(x: f64) -> i32 {
     x.floor() as i32
 }
 
@@ -101,4 +108,31 @@ impl Input for Logger {
             Err(e) => log_panic!(&self, Level::Error, "{}", e),
         }
     }
+}
+
+#[must_use]
+/// # Panics
+/// If unwrap fails.
+pub fn parse_overview(overview: &Row) -> [f32;3] {
+    let v = overview.iter().map(|c| c.get_content().parse().unwrap())
+        .collect::<Vec<f32>>();
+    // recipe_cost, margin, time
+    [v[0], v[2], v[3]]
+}
+
+
+
+pub fn comma_string<T: num_format::ToFormattedStr>(x: &T) -> String {
+    // Create a stack-allocated buffer...
+    let mut buf = num_format::Buffer::default();
+
+    // Write "1,000,000" into the buffer...
+    buf.write_formatted(x, &num_format::Locale::en);
+
+    // Get a view into the buffer as a &str...
+    buf.to_string()
+}
+
+pub fn parse_comma_string(x: &str) -> Result<i32, std::num::ParseIntError> {
+    x.replace(',', "").parse()
 }

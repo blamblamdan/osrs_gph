@@ -36,7 +36,7 @@ pub struct ItemSearch<'a, S: AsRef<Path>> {
 
 #[derive(Debug)]
 // #[serde(untagged)]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub enum RecipeTime {
     Time(f32),
     #[default]
@@ -97,7 +97,7 @@ impl<'de> Deserialize<'de> for RecipeTime {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct Recipe {
     pub name: String,
     pub inputs: HashMap<String, f32>,

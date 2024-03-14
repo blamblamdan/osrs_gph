@@ -29,7 +29,7 @@ impl<'a, S: AsRef<Path> + Display> PriceHandle<'a, S> {
         if profit < 100 {
             profit
         } else {
-            let tax = 5_000_000.min(floor(profit as f32 * 0.01));
+            let tax = 5_000_000.min(floor(f64::from(profit) * 0.01));
             profit - tax
         }
     }
@@ -39,7 +39,7 @@ impl<'a, S: AsRef<Path> + Display> PriceHandle<'a, S> {
     pub fn total_price(price_details: &[(i32, f32)]) -> i32 {
         // total price for each item is price * quantity
         let total: f32 = price_details.iter().map(|t| t.0 as f32 * t.1).sum();
-        floor(total)
+        floor(f64::from(total))
     }
 
     #[must_use]
@@ -56,15 +56,35 @@ impl<'a, S: AsRef<Path> + Display> PriceHandle<'a, S> {
             let total_time_h: f32 = f_round(number as f32 * time_h, 2);
 
             let gp_h = if total_margin {
-                floor(margin as f32 / total_time_h)
+                floor(f64::from(margin) / f64::from(total_time_h))
             } else {
-                floor(margin as f32 / time_h)
+                floor(f64::from(margin)/ f64::from(time_h))
             };
 
             return (Some(total_time_h), Some(gp_h));
         }
         (None, None)
     }
+
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn recipe_time_h_manual(
+        time: f32,
+        number: i32,
+        margin: i32,
+        total_margin: bool,
+    ) -> (f32, i32) {
+            let time_h: f32 = time / (60. * 60.);
+            let total_time_h: f32 = f_round(number as f32 * time_h, 2);
+
+            let gp_h = if total_margin {
+                floor(f64::from(margin) / f64::from(total_time_h))
+            } else {
+                floor(f64::from(margin)/ f64::from(time_h))
+            };
+
+            (total_time_h, gp_h)
+        }
 
     /// (Item, (Price, Quantity))
     pub fn item_list_prices<I: IntoIterator<Item = (Item, f32)>>(

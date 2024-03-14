@@ -3,7 +3,7 @@ use crate::{
     data_types::PriceDataType,
     errors::{Custom, CustomResult},
     file_io::FileIO,
-    item_search::{Item, ItemSearch, Recipe, RecipeBook}, price_handle::PriceHandle,
+    item_search::{Item, ItemSearch, Recipe, RecipeBook}, price_handle::PriceHandle, convenience::{parse_overview, floor, comma_string, RIGHT_ALIGN, LEFT_ALIGN}, pareto_sort::{Weights, optimal_sort},
 };
 
 use std::{
@@ -11,12 +11,12 @@ use std::{
     collections::HashMap,
     fmt::{self, Debug, Display},
     fs::File,
-    io::{self, BufReader, BufWriter, Seek},
+    io::{self, BufReader, BufWriter, Seek, Read},
     path::Path,
     time::Instant,
 };
 
-use prettytable::{Table, Row, Cell};
+use prettytable::{Table, Row, Cell, row};
 use reqwest::{
     blocking::{self, Response},
     header::HeaderMap,
@@ -37,6 +37,7 @@ pub type LogAPI<'l, S> = Logging<'l, API<S>>;
 pub type LogItemSearch<'l, 'io, S> = Logging<'l, ItemSearch<'io, S>>;
 pub type LogRecipeBook<'l> = Logging<'l, RecipeBook>;
 pub type LogPriceHandle<'l, 'il, S> = Logging<'l, PriceHandle<'il, S>>;
+
 
 /// Derived from `info!` from slog.
 /// Logs message then panics.
@@ -169,11 +170,13 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         }
     }
 
+
     /// # Errors
     /// Errors if `Self::rewind` fails.
     pub fn open_file<E: fmt::Display>(&mut self, emsg: E) -> CustomResult<File> {
         let mut file = self.file(); // Open once
-        if !self.has_data(&file) {
+        // if !self.has_data(&file) {
+        if !self.object.exists(&file) {
             warn!(&self.logger, "{emsg}");
             return Err(io::ErrorKind::NotFound.into());
         };
@@ -221,6 +224,25 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         }
     }
 
+    pub fn get_writer(&mut self) -> Result<BufWriter<File>, Custom> {
+        let file = self.open_file(
+            format!("Attempted to write to non-existent file {}", &self.object.filename)
+        )?;
+        info!(&self.logger, "Overwriting file {}", &self.object.filename);
+
+        Ok(BufWriter::with_capacity(self.object.get_buf_size(), file))
+    }
+
+    pub fn get_reader(&mut self) -> Result<BufReader<File>, Custom> {
+        let file = self.open_file(
+            format!("Attempted to read non-existent file {}", &self.object.filename)
+        )?;
+        info!(&self.logger, "Reading file {}", &self.object.filename);
+
+        // TODO: Is file.read_to_string(...); faster?
+        Ok(BufReader::with_capacity(self.object.get_buf_size(), file)) // Speedy
+    }
+
     /// # Errors
     /// When file does not exist or serialization fails.
     pub fn write<J: Serialize, F: serde_json::ser::Formatter>(
@@ -228,12 +250,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         data: &J,
         format: F,
     ) -> Result<(), Custom> {
-        let file = self.open_file(
-            format!("Attempted to write to non-existent file {}", &self.object.filename)
-        )?;
-        info!(&self.logger, "Overwriting file {}", &self.object.filename);
-
-        let buffer = BufWriter::with_capacity(self.object.get_buf_size(), file);
+        let buffer = self.get_writer()?;
         let mut serialiser = serde_json::ser::Serializer::with_formatter(buffer, format);
 
         // DEBUG
@@ -247,21 +264,24 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
     /// # Errors
     /// Errors when the file does not exist or deserialization fails.
     pub fn read<'de, T: Deserialize<'de>>(&mut self) -> Result<T, Custom> {
-        let file = self.open_file(
-            format!("Attempted to read non-existent file {}", &self.object.filename)
-        )?;
-        info!(&self.logger, "Reading file {}", &self.object.filename);
-
-        // TODO: Is file.read_to_string(...); faster?
-        let buffer = BufReader::with_capacity(self.object.get_buf_size(), file); // Speedy
+        let buffer = self.get_reader()?;
         let mut deserialiser = serde_json::de::Deserializer::from_reader(buffer);
 
         // DEBUG
         let now = Instant::now();
         let t = T::deserialize(&mut deserialiser)?;
         println!("Read file in {:?}", now.elapsed()); // DEBUG
-        
+
         Ok(t)
+    }
+
+    pub fn clear_contents(&mut self) -> Result<(),Custom> {
+        let file = self.open_file(
+            format!("Attempted to clear non-existent file {}", &self.object.filename)
+        )?;
+        file.set_len(0)?;
+        file.sync_all()?;
+        Ok(())
     }
 }
 
@@ -426,7 +446,7 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
             warn!(&self.logger, "Item `{item_name}` not found.");
         }
         item
-    }  
+    }
     pub fn item_by_id(&self, item_id: &String) -> Option<&Item> {
         self.object.item_by_id(item_id)
     }
@@ -492,6 +512,10 @@ impl<'l> LogRecipeBook<'l> {
         self.object.remove_recipe("Template");
         debug!(&self.logger, "Loaded {} recipes.", self.object.len());
     }
+    #[must_use]
+    pub fn get_all_recipes(&self) -> HashMap<String, Recipe> {
+        self.object.recipes.clone()
+    }
 }
 
 
@@ -514,7 +538,7 @@ impl<'l: 'il, 'il, S: AsRef<Path> + Display> LogPriceHandle<'l, 'il, S> {
         );
         let output_details = PriceHandle::<S>::item_list_prices_unchecked(
             output_items, false
-        ); 
+        );
 
         let cost = PriceHandle::<S>::total_price(
             &input_details.into_values().collect::<Vec<_>>()
@@ -527,13 +551,81 @@ impl<'l: 'il, 'il, S: AsRef<Path> + Display> LogPriceHandle<'l, 'il, S> {
         let profit = revenue-cost;
         let time = &recipe.time;
 
-        Some(Row::new(
-            vec![
-                Cell::new(cost.to_string().as_str()), 
-                Cell::new(revenue.to_string().as_str()), 
-                Cell::new(profit.to_string().as_str()), 
-                Cell::new(time.to_string().as_str())
+        Some(
+            row![
+            cost,
+            revenue,
+            profit,
+            time
             ]
-        ))
+        )
+    }
+
+    pub fn all_recipe_overview(&self, sort_by_u: &Weights, price_options: [bool;3]) -> Table {
+        let [profiting, show_hidden, reverse] = price_options;
+
+        let recipe_list = self.object.recipe_list.get_all_recipes();
+        let all_recipe_prices = recipe_list.keys()
+            .filter_map(|recipe_name| {
+                let overview = self.recipe_price_overview(recipe_name)?;
+                Some((recipe_name, overview))
+            }
+            ).collect::<HashMap<_,_>>();
+
+        let mut all_recipe_details = Table::new();
+
+        let coins = self.object.coins;
+        for (recipe_name, overview) in all_recipe_prices{
+            let [recipe_cost_f, margin_f, time] = parse_overview(&overview);
+            let margin = floor(f64::from(margin_f));
+            let recipe_cost = floor(f64::from(recipe_cost_f));
+
+            let cant_afford = coins < recipe_cost;
+            let no_profit = margin <= 0;
+
+            // Used Karnaugh map to calculate
+            if  (cant_afford && !show_hidden) || (no_profit && profiting && !show_hidden) {
+                continue;
+            }
+
+            let [rn_s, m_s, totm_s, tt_s, gph_s] = if (cant_afford && show_hidden) || (no_profit && profiting && show_hidden) {
+                [
+                    recipe_name.to_owned(),
+                    "#".to_owned(),
+                    "#".to_owned(),
+                    "#".to_owned(),
+                    "#".to_owned()
+                ]
+            } else {
+                let amount = floor(f64::from(coins)/f64::from(recipe_cost));
+
+                let (total_time_h, gp_h) = PriceHandle::<String>::recipe_time_h_manual(
+                    time, amount, margin, false
+                );
+                [
+                    recipe_name.to_owned(),
+                    comma_string(&margin),
+                    comma_string(&(amount*margin)),
+                    total_time_h.to_string(),
+                    comma_string(&gp_h)
+                ]
+            };
+
+            
+            let row = Row::new(
+                vec![
+                Cell::new_align(&rn_s, LEFT_ALIGN),
+                Cell::new_align(&m_s, RIGHT_ALIGN),
+                Cell::new_align(&totm_s, RIGHT_ALIGN),
+                Cell::new_align(&tt_s, RIGHT_ALIGN),
+                Cell::new_align(&gph_s, RIGHT_ALIGN)
+                ]
+            );
+            all_recipe_details.add_row(row);
+        }
+
+        // TODO: Does this actually modify?
+        optimal_sort(&all_recipe_details, sort_by_u, reverse)
+        // all_recipe_details
     }
 }

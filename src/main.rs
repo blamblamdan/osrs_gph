@@ -1,6 +1,6 @@
 use osrs_gph::{
     api::{APIHeaders, FromTable, API},
-    convenience::{self, Input},
+    convenience::{self, Input, RIGHT_ALIGN, LEFT_ALIGN},
     data_types::PriceDataType,
     errors::Custom,
     item_search::{Item, Recipe, RecipeBook},
@@ -8,6 +8,7 @@ use osrs_gph::{
     logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook, LogPriceHandle},
     pareto_sort::compute_weights, price_handle::PriceHandle,
 };
+use prettytable::{format, Table as PrettyTable, row, Row, Cell};
 
 use core::fmt;
 use std::{
@@ -18,7 +19,7 @@ use std::{
 
 use reqwest::blocking::Response;
 use serde::Deserialize;
-use slog::{debug, info, Level, Logger};
+use slog::{debug, info, Level, Logger, error, warn};
 use sloggers::types::Format;
 use toml::{Table, Value};
 
@@ -46,6 +47,13 @@ fn main() {
             &logger,
             Level::Critical,
             "Data filepaths could not be parsed"
+        )
+    });
+    let results_fps: &Table = config["filepaths"]["results"].as_table().unwrap_or_else(|| {
+        log_panic!(
+            &logger,
+            Level::Critical,
+            "Results filepaths could not be parsed"
         )
     });
 
@@ -77,6 +85,71 @@ fn main() {
     let (recipe_fp, mut recipe_book) = create_recipe_book(&logger, &config);
     recipe_book.initalize(&item_search_s, &recipe_fp, None::<Vec<Recipe>>);
 
+    let (price_hand, backend_settings, weights) = fun_name(&logger, &config, item_search_s, recipe_book);
+    // dbg!(&weights);
+    let mut optimal_overview = price_hand.all_recipe_overview(&weights, backend_settings);
+
+    let table_format = format::FormatBuilder::new()
+        .column_separator(' ')
+        // .borders('|')
+        .separators(
+            &[
+                // format::LinePosition::Top, 
+                format::LinePosition::Bottom
+            ],
+            format::LineSeparator::new('#', '#', '#', '#'),
+        )
+        .separator(format::LinePosition::Title, format::LineSeparator::new('-', ' ', ' ', ' '))
+        .padding(2, 2)
+        .build();
+    optimal_overview.set_format(table_format);
+    optimal_overview.set_titles(
+        Row::new(
+            vec![
+            Cell::new_align("Method", LEFT_ALIGN),
+            Cell::new_align("Loss/Gain", RIGHT_ALIGN),
+            Cell::new_align("Total Loss/Gain", RIGHT_ALIGN),
+            Cell::new_align("Time (h)", RIGHT_ALIGN),
+            Cell::new_align("GP/h", RIGHT_ALIGN)
+            ]
+        )
+    );
+    // dbg!(&optimal_overview.get_format()); // Has updated internally
+
+    // optimal_overview.printstd();
+    // early_exit!();
+
+
+
+    let mut result_writer_fio = LogFileIO::<&str>::with_options(
+        &logger,
+        results_fps["optimal"]
+            .as_str()
+            .unwrap_or("results/optimal_overview.txt"),
+        [true, true, true]
+    );
+    if let Err(e) = result_writer_fio.clear_contents() {
+        warn!(&logger, "Failed to clear file contents. {}", e);
+    }
+    
+    // let formatted_table = String::from_utf8(
+    //     optimal_overview.to_csv(Vec::new())
+    //         .unwrap()
+    //         .into_inner()
+    //         .unwrap()
+    // ).unwrap();
+    // let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
+
+    match optimal_overview.print(&mut result_writer_fio.get_writer().ok().unwrap()) {
+        Ok(_) => info!(&logger, "Sucessfully wrote results."),
+        Err(e) => error!(&logger, "Failed to write results: {}", e)
+    }
+
+    
+
+}
+
+fn fun_name<'l: 'io, 'io>(logger: &'l Logger, config: &Table, item_search_s: LogItemSearch<'l, 'io, &'io str>, recipe_book: LogRecipeBook<'l>) -> (LogPriceHandle<'l, 'io, &'io str>, [bool; 3], [f32; 4]) {
     // TODO compute weights, price_calc and display
     let coins = match i32::deserialize(config["profit_settings"]["money"]["coins"].clone()) {
         Ok(c) => c,
@@ -97,20 +170,29 @@ fn main() {
                 e
             ),
         };
-    let weights: Vec<f32> =
+    let weights: [f32; 4] =
         match HashMap::<String, f32>::deserialize(config["profit_settings"]["weights"].clone()) {
             Ok(w) => {
-                let v = vec![w["margin_to_time"], w["time"], w["gp_h"]];
-                compute_weights(&v)
+                let v = [w["margin_to_time"], w["time"], w["gp_h"]];
+                compute_weights(coins, v)
             }
             Err(e) => log_panic!(&logger, Level::Error, "Failed to parse weights: {}", e),
         };
 
-    let price_hand = LogPriceHandle::new(&logger, 
+    // let row = price_hand.recipe_price_overview(&"Humidify Clay".to_string());
+    // dbg!(&row);
+    let backend_settings: [bool; 3] = match HashMap::<String, bool>::deserialize(
+        config["profit_settings"]["display"]["backend"].clone()
+    ) {
+        Ok(s) => [s["profiting"],s["show_hidden"],s["reverse"]],
+        Err(e) => log_panic!(&logger, Level::Error, "Failed to parse back-end display settings: {}", e),
+    };
+
+    
+    let price_hand = LogPriceHandle::new(logger, 
         PriceHandle::new(item_search_s, recipe_book, coins, pmargin)
     );
-    let row = price_hand.recipe_price_overview(&"Humidify Clay".to_string());
-    dbg!(&row);
+    (price_hand, backend_settings, weights)
 }
 
 fn perform_api_operations(config: &Table, logger: &Logger, price_data_io: &mut LogFileIO<&str>) {
@@ -128,6 +210,9 @@ fn perform_api_operations(config: &Table, logger: &Logger, price_data_io: &mut L
 
     let api_data = api_request(&api);
 
+    if let Err(e) = price_data_io.clear_contents() {
+        warn!(&price_data_io.logger, "Failed to clear file contents. {}", e);
+    }
     if let Err(e) = write_api_data(price_data_io, &api_data) {
         log_panic!(
             &price_data_io.logger,
