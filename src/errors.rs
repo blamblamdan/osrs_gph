@@ -4,11 +4,18 @@ pub type CustomResult<T> = Result<T, Custom>;
 pub enum Custom {
     IoError(std::io::Error),       // FileIO errors
     SerdeError(serde_json::Error), // Serde de/serialisation errors
+    TomlError(toml::de::Error),    // TOML deserialisation errors
 }
 
 impl From<std::io::Error> for Custom {
     fn from(err: std::io::Error) -> Self {
         Custom::IoError(err)
+    }
+}
+
+impl From<toml::de::Error> for Custom {
+    fn from(err: toml::de::Error) -> Self {
+        Custom::TomlError(err)
     }
 }
 
@@ -23,6 +30,7 @@ impl std::fmt::Display for Custom {
         match self {
             Custom::IoError(e) => write!(f, "{e}"),
             Custom::SerdeError(e) => write!(f, "{e}"),
+            Custom::TomlError(e) => write!(f, "{e}")
         }
     }
 }
@@ -32,6 +40,7 @@ impl std::error::Error for Custom {
         match self {
             Custom::IoError(e) => e.source(),
             Custom::SerdeError(e) => e.source(),
+            Custom::TomlError(e) =>  e.source()
         }
     }
 }

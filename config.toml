@@ -12,6 +12,7 @@ User-Agent = "profit_margins - @blamblamdan"
 price_data = "api_data/price_data.json"
 id_to_name = "lookup_data/id_to_name.json"
 name_to_id = "lookup_data/name_to_id.json"
+mapping = "lookup_data/mapping.json"
 
 [filepaths.recipes]
 recipe_data = "lookup_data/recipes.json"

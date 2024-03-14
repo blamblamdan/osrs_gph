@@ -152,6 +152,10 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
             object: FileIO::new(filename, [read, write, create]),
         }
     }
+
+    pub fn set_file_path(&mut self, fp: S) {
+        self.object.filename = fp;
+    }
     // Is this the best way?
     fn file(&mut self) -> File {
         let [read, write, create] = self.object.options;
