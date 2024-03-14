@@ -11,7 +11,7 @@ use std::{
     collections::HashMap,
     fmt::{self, Debug, Display},
     fs::File,
-    io::{self, BufReader, BufWriter, Seek, Read},
+    io::{self, BufReader, BufWriter, Seek},
     path::Path,
     time::Instant,
 };

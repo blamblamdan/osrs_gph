@@ -6,15 +6,35 @@ use std::{
     path::Path,
 };
 
-use prettytable::Row;
+use prettytable::{Row, format::{FormatBuilder, LinePosition, TableFormat, LineSeparator}};
 use slog::{debug, Level, Logger};
 use toml::Table;
+use lazy_static::lazy_static;
+pub static  CENTER_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::CENTER;
+pub static LEFT_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::LEFT;
+pub static RIGHT_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::RIGHT;
 
-pub const CENTER_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::CENTER;
-pub const LEFT_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::LEFT;
-pub const RIGHT_ALIGN: prettytable::format::Alignment = prettytable::format::Alignment::RIGHT;
-
-
+lazy_static!{
+    pub static ref CUSTOM_TABLE_FORMAT: TableFormat = prettytable::format::FormatBuilder::new()
+        .column_separator(' ')
+        // .borders('|')
+        .separators(
+            &[
+                // format::LinePosition::Top, 
+                prettytable::format::LinePosition::Bottom
+            ],
+            prettytable::format::LineSeparator::new('#', '#', '#', '#'),
+        )
+        .separator(prettytable::format::LinePosition::Title, prettytable::format::LineSeparator::new('-', ' ', ' ', ' '))
+        .padding(1, 1)
+        .build();
+    pub static ref FORMAT_MARKDOWN: TableFormat = FormatBuilder::new()
+        .padding(1, 1)
+        .borders('|')
+        .separator(LinePosition::Title, LineSeparator::new('-', '|', '|', '|'))
+        .column_separator('|')
+        .build();
+}
 
 #[must_use]
 #[allow(clippy::cast_possible_truncation)]

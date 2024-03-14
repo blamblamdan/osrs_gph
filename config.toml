@@ -20,8 +20,8 @@ ignore_items = [ # Buy limit, or just unwanted items
 ]
 
 [filepaths.results]
-optimal = "results/optimal_overview.txt"
-lookup = "results/recipe_lookup.txt"
+optimal = "results/optimal_overview.md"
+lookup = "results/recipe_lookup.md"
 
 [filepaths.logging]
 log_file = "runtime.log"

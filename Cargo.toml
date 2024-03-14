@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 http = "0.2.11"
 itertools = "0.12.1"
+lazy_static = "1.4.0"
 num-format = { version = "0.4.4", default-features = false }
 prettytable-rs = "0.10.0"
 reqwest = { version = "0.11.24", default-features = false, features = ["rustls-tls", "blocking", "json"] }
@@ -25,6 +26,8 @@ debug = true
 
 [lints.clippy]
 pedantic = "warn"
+missing_errors_doc = "allow" # FUTURE: Change to "warn" when all errors are documented
+
 # TODO:
 ## Find out what's causing latency...
 ### Browser requesting same data takes ~50ms-140ms (Upper bound when first initiating sequence of requests)

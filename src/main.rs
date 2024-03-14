@@ -8,8 +8,8 @@ use osrs_gph::{
     logging::{LogAPI, LogConfig, LogFileIO, LogItemSearch, LogRecipeBook, LogPriceHandle},
     pareto_sort::compute_weights, price_handle::PriceHandle,
 };
-use prettytable::{format, Table as PrettyTable, row, Row, Cell};
-
+use prettytable::{Row, Cell};
+use crate::convenience::FORMAT_MARKDOWN;
 use core::fmt;
 use std::{
     collections::HashMap,
@@ -89,20 +89,8 @@ fn main() {
     // dbg!(&weights);
     let mut optimal_overview = price_hand.all_recipe_overview(&weights, backend_settings);
 
-    let table_format = format::FormatBuilder::new()
-        .column_separator(' ')
-        // .borders('|')
-        .separators(
-            &[
-                // format::LinePosition::Top, 
-                format::LinePosition::Bottom
-            ],
-            format::LineSeparator::new('#', '#', '#', '#'),
-        )
-        .separator(format::LinePosition::Title, format::LineSeparator::new('-', ' ', ' ', ' '))
-        .padding(2, 2)
-        .build();
-    optimal_overview.set_format(table_format);
+    // 
+    optimal_overview.set_format(*FORMAT_MARKDOWN);
     optimal_overview.set_titles(
         Row::new(
             vec![
@@ -114,12 +102,6 @@ fn main() {
             ]
         )
     );
-    // dbg!(&optimal_overview.get_format()); // Has updated internally
-
-    // optimal_overview.printstd();
-    // early_exit!();
-
-
 
     let mut result_writer_fio = LogFileIO::<&str>::with_options(
         &logger,
@@ -132,14 +114,6 @@ fn main() {
         warn!(&logger, "Failed to clear file contents. {}", e);
     }
     
-    // let formatted_table = String::from_utf8(
-    //     optimal_overview.to_csv(Vec::new())
-    //         .unwrap()
-    //         .into_inner()
-    //         .unwrap()
-    // ).unwrap();
-    // let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
-
     match optimal_overview.print(&mut result_writer_fio.get_writer().ok().unwrap()) {
         Ok(_) => info!(&logger, "Sucessfully wrote results."),
         Err(e) => error!(&logger, "Failed to write results: {}", e)

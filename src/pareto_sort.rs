@@ -7,6 +7,7 @@ use crate::convenience::parse_comma_string;
 
 pub type Weights = [f32;4];
 
+#[allow(clippy::cast_precision_loss)]
 fn lin_scalarization(x: &Row, weights: &Weights) -> Option<f32> {
     // Want to multiply weights with x, starting from 2nd element (i32)
     // Need to skip the first element of the Row (String)
