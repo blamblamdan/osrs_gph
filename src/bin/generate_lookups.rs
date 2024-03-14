@@ -1,11 +1,12 @@
-use std::{path::PathBuf, collections::HashMap};
+use std::collections::HashMap;
 
 use osrs_gph::{convenience, logging::{LogConfig, LogFileIO}, errors::Custom, log_panic};
 use slog::{debug, Level, warn};
 use sloggers::types::Format;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct MappingItem {
     #[serde(default)]
