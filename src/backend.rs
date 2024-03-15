@@ -31,7 +31,14 @@ macro_rules! early_exit {
 }
 
 // #[allow(clippy::too_many_lines)]
-pub fn main() {
+fn main() {
+    let (logger, results_fps, optimal_overview) = main_inner();
+    write_results(&logger, &results_fps, &optimal_overview);
+}
+
+#[must_use]
+/// `(logger, results_fps, optimal_overview)`
+pub fn main_inner() -> (Logger, Table, prettytable::Table){
     let config = convenience::load_config("config.toml"); // Load TOML file into here
 
     let logger_path: &str = config["filepaths"]["logging"]["log_file"]
@@ -66,6 +73,9 @@ pub fn main() {
     let choice = inp.trim_end();
     // Load new data from API or pre-existing file data
     
+
+    // This is independent of fileIO creation
+    // Only matters when the *data* should be updated
     if choice == "1" {
         info!(&logger, "Retrieving prices from API.");
         perform_api_operations(&config, &logger, &mut price_data_io);
@@ -103,8 +113,13 @@ pub fn main() {
         )
     );
 
+    (logger, results_fps.clone(), optimal_overview)
+
+}
+
+fn write_results(logger: &Logger, results_fps: &toml::map::Map<String, Value>, optimal_overview: &prettytable::Table) {
     let mut result_writer_fio = LogFileIO::<&str>::with_options(
-        &logger,
+        logger,
         results_fps["optimal"]
             .as_str()
             .unwrap_or("results/optimal_overview.txt"),
@@ -118,11 +133,12 @@ pub fn main() {
         Ok(_) => info!(&logger, "Sucessfully wrote results."),
         Err(e) => error!(&logger, "Failed to write results: {}", e)
     }
-
-    
-
 }
 
+// pub fn write_results() {
+
+// }
+#[must_use]
 pub fn create_price_handle<'l: 'io, 'io>(logger: &'l Logger, config: &Table, item_search_s: LogItemSearch<'l, 'io, &'io str>, recipe_book: LogRecipeBook<'l>) -> (LogPriceHandle<'l, 'io, &'io str>, [bool; 3], [f32; 4]) {
     // TODO compute weights, price_calc and display
     let coins = match i32::deserialize(config["profit_settings"]["money"]["coins"].clone()) {
@@ -199,6 +215,7 @@ pub fn perform_api_operations(config: &Table, logger: &Logger, price_data_io: &m
     }
 }
 
+#[must_use]
 pub fn create_recipe_book<'l>(logger: &'l Logger, config: &toml::map::Map<String, Value>) -> (String, LogRecipeBook<'l>) {
     // Load recipes
     let recipe_fp: String =
@@ -215,6 +232,7 @@ pub fn create_recipe_book<'l>(logger: &'l Logger, config: &toml::map::Map<String
     (recipe_fp, recipe_book)
 }
 
+#[must_use]
 pub fn create_item_search<'l: 'io, 'io: 'l + 'fp, 'fp>(
     logger: &'l Logger,
     price_data_io: LogFileIO<'io, &'fp str>,
@@ -243,6 +261,7 @@ pub fn create_item_search<'l: 'io, 'io: 'l + 'fp, 'fp>(
     (item_search_s, ignore_items)
 }
 
+#[must_use]
 pub fn create_fio<'l, 'd>(
     logger: &'l Logger,
     data_fps: &'d toml::map::Map<String, Value>,
@@ -277,6 +296,7 @@ pub fn create_fio<'l, 'd>(
     (price_data_io, name_to_id, id_to_name)
 }
 
+#[must_use]
 pub fn api_request(log_api: &LogAPI<String>) -> PriceDataType {
     let callback = |mut r: Response| -> Result<PriceDataType, Custom> {
         let buffer = BufReader::new(r.by_ref()); // 400KB (So far the responses are 395KB 2024-02-02)
@@ -299,6 +319,7 @@ pub fn write_api_data<S: AsRef<Path> + fmt::Display>(
     price_data_io.write(&api_data, formatter.clone())
 }
 
+#[must_use]
 pub fn setup_api_headers(logger: &Logger, headers: &Value) -> APIHeaders {
     if let Some(a) = headers.as_table() {
         APIHeaders::from_table_ref(a)
@@ -307,6 +328,7 @@ pub fn setup_api_headers(logger: &Logger, headers: &Value) -> APIHeaders {
     }
 }
 
+#[must_use]
 pub fn setup_api<'a>(logger: &'a Logger, api_settings: &Table) -> LogAPI<'a, String> {
     // API Headers from config
     let headers = setup_api_headers(logger, &api_settings["auth_headers"]);
