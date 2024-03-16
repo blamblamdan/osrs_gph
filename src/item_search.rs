@@ -26,9 +26,9 @@ impl Hash for Item {
 
 pub struct ItemSearch<'a, S: AsRef<Path>> {
     // Curse of logging wrapper...
-    pub price_data_handler: LogFileIO<'a, S>,
-    pub id_to_name_handler: LogFileIO<'a, S>,
-    pub name_to_id_handler: LogFileIO<'a, S>,
+    pub price_data_handler: &'a mut LogFileIO<'a, S>,
+    pub id_to_name_handler: &'a LogFileIO<'a, S>,
+    pub name_to_id_handler: &'a LogFileIO<'a, S>,
     pub items: HashMap<String, Item>,
     pub name_to_id: HashMap<String, String>,
     pub id_to_name: HashMap<String, String>,
@@ -112,9 +112,9 @@ pub struct RecipeBook {
 
 impl<'a, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a, S> {
     pub fn new(
-        price_data_handler: LogFileIO<'a, S>,
-        id_to_name_handler: LogFileIO<'a, S>,
-        name_to_id_handler: LogFileIO<'a, S>,
+        price_data_handler: &'a mut LogFileIO<'a, S>,
+        id_to_name_handler: &'a LogFileIO<'a, S>,
+        name_to_id_handler: &'a LogFileIO<'a, S>,
         items: HashMap<String, Item>,
     ) -> Self {
         Self {
@@ -126,15 +126,23 @@ impl<'a, S: AsRef<Path> + std::fmt::Display> ItemSearch<'a, S> {
             id_to_name: HashMap::new(),
         }
     }
+
+    #[must_use]
     pub fn name_from_id(&self, item_id: &String) -> Option<&String> {
         self.id_to_name.get(item_id)
     }
+
+    #[must_use]
     pub fn id_from_name(&self, item_name: &String) -> Option<&String> {
         self.name_to_id.get(item_name)
     }
+
+    #[must_use]
     pub fn item_by_name(&self, item_name: &String) -> Option<&Item> {
         self.items.get(item_name) 
     }  
+
+    #[must_use]
     pub fn item_by_id(&self, item_id: &String) -> Option<&Item> {
         if let Some(item_name) = self.name_from_id(item_id) {
             self.item_by_name(item_name)

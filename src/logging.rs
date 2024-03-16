@@ -157,7 +157,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         self.object.filename = fp;
     }
     // Is this the best way?
-    fn file(&mut self) -> File {
+    fn file(&self) -> File {
         let [read, write, create] = self.object.options;
         let filename = &self.object.filename;
         match std::fs::OpenOptions::new()
@@ -177,7 +177,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
 
     /// # Errors
     /// Errors if `Self::rewind` fails.
-    pub fn open_file<E: fmt::Display>(&mut self, emsg: E) -> CustomResult<File> {
+    pub fn open_file<E: fmt::Display>(&self, emsg: E) -> CustomResult<File> {
         let mut file = self.file(); // Open once
         // if !self.has_data(&file) {
         if !self.object.exists(&file) {
@@ -237,7 +237,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
         Ok(BufWriter::with_capacity(self.object.get_buf_size(), file))
     }
 
-    pub fn get_reader(&mut self) -> Result<BufReader<File>, Custom> {
+    pub fn get_reader(&self) -> Result<BufReader<File>, Custom> {
         let file = self.open_file(
             format!("Attempted to read non-existent file {}", &self.object.filename)
         )?;
@@ -267,7 +267,7 @@ impl<'l, S: AsRef<Path> + fmt::Display> LogFileIO<'l, S> {
 
     /// # Errors
     /// Errors when the file does not exist or deserialization fails.
-    pub fn read<'de, T: Deserialize<'de>>(&mut self) -> Result<T, Custom> {
+    pub fn read<'de, T: Deserialize<'de>>(&self) -> Result<T, Custom> {
         let buffer = self.get_reader()?;
         let mut deserialiser = serde_json::de::Deserializer::from_reader(buffer);
 
@@ -329,12 +329,12 @@ impl<'l, S: AsRef<str> + Display> LogAPI<'l, S> {
 }
 
 // 'a (Logger) outlives 'b (Object)
-impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S> {
+impl<'l, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'l, S> {
     pub fn new<H: Into<HashMap<String, Item>>>(
         logger: &'l Logger,
-        price_data_handler: LogFileIO<'l, S>,
-        id_to_name_handler: LogFileIO<'l, S>,
-        name_to_id_handler: LogFileIO<'l, S>,
+        price_data_handler: &'l mut LogFileIO<'l, S>,
+        id_to_name_handler: &'l LogFileIO<'l, S>,
+        name_to_id_handler: &'l LogFileIO<'l, S>,
         items: Option<H>,
     ) -> Self {
         let h = if let Some(il) = items {
@@ -344,7 +344,7 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
         };
         Self {
             logger,
-            object: ItemSearch::<'io, S>::new(
+            object: ItemSearch::<'l, S>::new(
                 price_data_handler,
                 id_to_name_handler,
                 name_to_id_handler,
@@ -360,7 +360,7 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
     }
 
     fn populate_id_to_name(&mut self) {
-        let i2n = &mut self.object.id_to_name_handler;
+        let i2n = self.object.id_to_name_handler;
         self.object.id_to_name = match i2n.read::<HashMap<String, String>>() {
             Ok(o) => o,
             Err(e) => log_panic!(
@@ -444,6 +444,7 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
         }
     }
 
+    #[must_use]
     pub fn item_by_name(&self, item_name: &String) -> Option<&Item> {
         let item = self.object.item_by_name(item_name);
         if item.is_none() {
@@ -451,6 +452,8 @@ impl<'l: 'io, 'io, S: AsRef<Path> + std::fmt::Display> LogItemSearch<'l, 'io, S>
         }
         item
     }
+
+    #[must_use]
     pub fn item_by_id(&self, item_id: &String) -> Option<&Item> {
         self.object.item_by_id(item_id)
     }
@@ -489,7 +492,7 @@ impl<'l> LogRecipeBook<'l> {
         _all_items: &Logging<ItemSearch<IS>>,
         recipe_path: S,
     ) {
-        let mut recipes_fio = Logging::<FileIO<S>>::new(self.logger, recipe_path);
+        let recipes_fio = Logging::<FileIO<S>>::new(self.logger, recipe_path);
         let mut recipe_list: Vec<Recipe> = match recipes_fio.read::<HashMap<String, Recipe>>() {
             Ok(l) => l.into_values().collect(),
             Err(e) => log_panic!(&self.logger, Level::Error, "Failed to load recipes. {}", e),
@@ -524,14 +527,18 @@ impl<'l> LogRecipeBook<'l> {
 
 
 impl<'l: 'il, 'il, S: AsRef<Path> + Display> LogPriceHandle<'l, 'il, S> {
+    #[must_use]
     pub fn new(logger: &'l Logger, object: PriceHandle<'il, S>) -> Self {
         Self { logger, object }
     }
 
+    #[must_use]
     pub fn recipe_price_overview(&self, recipe_name: &String) -> Option<Row> {
         let recipe = self.object.recipe_list.get_recipe(recipe_name)?;
         self.recipe_price_overview_from_recipe(recipe)
     }
+
+    #[must_use]
     pub fn recipe_price_overview_from_recipe(&self, recipe: &Recipe) -> Option<Row> {
         // Need to parse item strings into Item objects
         let input_items = self.object.parse_item_list(&recipe.inputs)?;
@@ -565,6 +572,7 @@ impl<'l: 'il, 'il, S: AsRef<Path> + Display> LogPriceHandle<'l, 'il, S> {
         )
     }
 
+    #[must_use]
     pub fn all_recipe_overview(&self, sort_by_u: &Weights, price_options: [bool;3]) -> Table {
         let [profiting, show_hidden, reverse] = price_options;
 

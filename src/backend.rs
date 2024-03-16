@@ -72,21 +72,12 @@ pub fn main_inner() -> (Logger, Table, prettytable::Table){
         .input("1. API Refresh Data\n2. Load previous Data\n");
     let choice = inp.trim_end();
     // Load new data from API or pre-existing file data
-    
 
-    // This is independent of fileIO creation
-    // Only matters when the *data* should be updated
-    if choice == "1" {
-        info!(&logger, "Retrieving prices from API.");
-        perform_api_operations(&config, &logger, &mut price_data_io);
-    } else if choice == "2" {
-        info!(&logger, "Loading previous data instead.");
-    } else {
-        log_panic!(&logger, Level::Error, "Bad choice {}", &choice);
-    }
+
+    refresh_prices(&logger, choice, &config, &mut price_data_io);
 
     let (mut item_search_s, ignore_items) =
-        create_item_search(&logger, price_data_io, id_to_name, name_to_id, &config);
+        create_item_search(&logger, &mut price_data_io, &id_to_name, &name_to_id, &config);
 
     // Setup ItemSearch
     item_search_s.initalize();
@@ -99,7 +90,7 @@ pub fn main_inner() -> (Logger, Table, prettytable::Table){
     // dbg!(&weights);
     let mut optimal_overview = price_hand.all_recipe_overview(&weights, backend_settings);
 
-    // 
+    //
     optimal_overview.set_format(*FORMAT_MARKDOWN);
     optimal_overview.set_titles(
         Row::new(
@@ -117,6 +108,19 @@ pub fn main_inner() -> (Logger, Table, prettytable::Table){
 
 }
 
+pub fn refresh_prices<'l>(logger: &'l Logger, choice: &str, config: &Table, price_data_io: &mut LogFileIO<'l, &'l str>) {
+    // This is independent of fileIO creation
+    // Only matters when the *data* should be updated
+    if choice == "1" {
+        info!(&logger, "Retrieving prices from API.");
+        perform_api_operations(config, logger, price_data_io);
+    } else if choice == "2" {
+        info!(&logger, "Loading previous data instead.");
+    } else {
+        log_panic!(&logger, Level::Error, "Bad choice {}", &choice);
+    }
+}
+
 fn write_results(logger: &Logger, results_fps: &toml::map::Map<String, Value>, optimal_overview: &prettytable::Table) {
     let mut result_writer_fio = LogFileIO::<&str>::with_options(
         logger,
@@ -128,7 +132,7 @@ fn write_results(logger: &Logger, results_fps: &toml::map::Map<String, Value>, o
     if let Err(e) = result_writer_fio.clear_contents() {
         warn!(&logger, "Failed to clear file contents. {}", e);
     }
-    
+
     match optimal_overview.print(&mut result_writer_fio.get_writer().ok().unwrap()) {
         Ok(_) => info!(&logger, "Sucessfully wrote results."),
         Err(e) => error!(&logger, "Failed to write results: {}", e)
@@ -178,8 +182,8 @@ pub fn create_price_handle<'l: 'io, 'io>(logger: &'l Logger, config: &Table, ite
         Err(e) => log_panic!(&logger, Level::Error, "Failed to parse back-end display settings: {}", e),
     };
 
-    
-    let price_hand = LogPriceHandle::new(logger, 
+
+    let price_hand = LogPriceHandle::new(logger,
         PriceHandle::new(item_search_s, recipe_book, coins, pmargin)
     );
     (price_hand, backend_settings, weights)
@@ -220,7 +224,7 @@ pub fn create_recipe_book<'l>(logger: &'l Logger, config: &toml::map::Map<String
     // Load recipes
     let recipe_fp: String =
     if let Ok(fp) = String::deserialize(config["filepaths"]["recipes"]["recipe_data"].clone()) {
-        fp 
+        fp
     } else { log_panic!(
         &logger,
         Level::Error,
@@ -235,10 +239,10 @@ pub fn create_recipe_book<'l>(logger: &'l Logger, config: &toml::map::Map<String
 #[must_use]
 pub fn create_item_search<'l: 'io, 'io: 'l + 'fp, 'fp>(
     logger: &'l Logger,
-    price_data_io: LogFileIO<'io, &'fp str>,
-    id_to_name: LogFileIO<'io, &'fp str>,
-    name_to_id: LogFileIO<'io, &'fp str>,
-    config: &toml::map::Map<String, Value>,
+    price_data_io: &'io mut LogFileIO<'io, &'fp str>,
+    id_to_name: &'io LogFileIO<'io, &'fp str>,
+    name_to_id: &'io LogFileIO<'io, &'fp str>,
+    config: &Table,
 ) -> (LogItemSearch<'l, 'io, &'fp str>, Vec<String>) {
     let item_search_s = LogItemSearch::<&str>::new::<HashMap<String, Item>>(
         logger,
